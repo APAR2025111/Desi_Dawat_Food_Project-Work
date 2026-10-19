@@ -40,6 +40,8 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [flyerDay, setFlyerDay] = useState("sun");
+  const [selectedAllMenuItems, setSelectedAllMenuItems] = useState([]);
+  
 const [flyerFormat, setFlyerFormat] = useState("two-page");
 const [flyerGenerating, setFlyerGenerating] = useState(false);
 const [selectedFlyerItems, setSelectedFlyerItems] = useState([]);
@@ -62,11 +64,21 @@ const handleGenerateFlyer = () => {
   setFlyerGenerating(true);
 
   try {
-    const availableItems = items.filter(
-  (item) =>
-    item.is_available &&
+    const availableItems = items.filter((item) => {
+  const isAvailable = Boolean(Number(item.is_available));
+
+  if (flyerDay === "all-menu") {
+  return (
+    isAvailable &&
+    selectedAllMenuItems.includes(item.item_id)
+  );
+}
+
+  return (
+    isAvailable &&
     selectedFlyerItems.includes(item.item_id)
-);
+  );
+});
 if (availableItems.length === 0) {
   alert("No available menu items to include in the flyer.");
   return;
@@ -170,21 +182,23 @@ if (availableItems.length === 0) {
               <img src="/images/LOGO.jpeg" alt="Desi Dawat logo" />
               <h1>Desi Dawat</h1>
               <p>Intialainen kasvisruoka / Indian Vegetarian Food</p>
-              <h2>${({
-  mon: "MONDAY",
-  tue: "TUESDAY",
-  wed: "WEDNESDAY",
-  thu: "THURSDAY",
-  fri: "FRIDAY",
-  sat: "SATURDAY",
-  sun: "SUNDAY"
-})[flyerDay]} MENU / PÄIVÄN RUOKALISTA</h2>
+              <h2>${flyerDay === "all-menu"
+  ? "RUOKALISTA / MENU CARD"
+  : ({
+      mon: "MONDAY",
+      tue: "TUESDAY",
+      wed: "WEDNESDAY",
+      thu: "THURSDAY",
+      fri: "FRIDAY",
+      sat: "SATURDAY",
+      sun: "SUNDAY"
+    })[flyerDay] + " MENU / PÄIVÄN RUOKALISTA"}</h2>
             </header>
             <main id="menu"></main>
           </section>
 
           ${
-            flyerFormat === "two-page"
+            flyerFormat === "two-page" && flyerDay !== "all-menu"
               ? `
                 <section class="page page-two">
                   <header>
@@ -197,7 +211,10 @@ if (availableItems.length === 0) {
                   <p>Soita / Call: +358 449803211</p>
                 <p>
   ${(() => {
-  const day = openingHours.find((d) => d.day_key === flyerDay);
+  const day =
+  openingHours.find((d) => d.day_key === flyerDay) ||
+  openingHours.find((d) => d.day_key === "mon_thu") ||
+  undefined;
 
   if (!day) {
     return "Aukioloajat: Ei saatavilla / Opening hours: Unavailable";
@@ -634,6 +651,7 @@ Delivery Charge saved for order #${order.order_id}.`);
         <option value="fri">Friday / Perjantai</option>
         <option value="sat">Saturday / Lauantai</option>
         <option value="sun">Sunday / Sunnuntai</option>
+        <option value="all-menu">Desi-Dawat_Menu / Koko ruokalista</option>
       </select>
     </label>
 
@@ -673,14 +691,23 @@ Delivery Charge saved for order #${order.order_id}.`);
           <label className="check-label" key={item.item_id}>
             <input
               type="checkbox"
-              checked={selectedFlyerItems.includes(item.item_id)}
-              onChange={(e) =>
-                setSelectedFlyerItems((previous) =>
-                  e.target.checked
-                    ? [...previous, item.item_id]
-                    : previous.filter((id) => id !== item.item_id)
-                )
-              }
+              checked={
+  flyerDay === "all-menu"
+    ? selectedAllMenuItems.includes(item.item_id)
+    : selectedFlyerItems.includes(item.item_id)
+}
+onChange={(e) => {
+  const setter =
+    flyerDay === "all-menu"
+      ? setSelectedAllMenuItems
+      : setSelectedFlyerItems;
+
+  setter((previous) =>
+    e.target.checked
+      ? [...previous, item.item_id]
+      : previous.filter((id) => id !== item.item_id)
+  );
+}}
             />
             {item.item_name} — €
             {Number(item.price_eur).toFixed(2)}
