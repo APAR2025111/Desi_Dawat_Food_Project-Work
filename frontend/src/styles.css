@@ -1,0 +1,1113 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap');
+
+:root{font-family:'DM Sans',system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#29251f;background:#fffaf4;font-synthesis:none;text-rendering:optimizeLegibility}
+*{box-sizing:border-box}body{margin:0;min-width:320px}a{color:inherit}button,input,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.6;cursor:wait}
+.app-shell{min-height:100vh;display:flex;flex-direction:column}.site-header{height:auto;min-height:78px;padding:15px clamp(18px,5vw,72px);display:flex;align-items:center;justify-content:space-between;gap:18px;background:#fffdf9;border-bottom:1px solid #eee3d6}.brand{display:flex;align-items:center;gap:12px;text-decoration:none}.brand-mark{width:45px;height:45px;border-radius:50%;background:#7b1e24;color:#ffe4a8;display:grid;place-items:center;font-family:'Playfair Display',serif;font-weight:800}.brand strong{display:block;font-family:'Playfair Display',serif;font-size:1.35rem;color:#7b1e24}.brand small{display:block;font-size:.75rem;color:#81776b;margin-top:2px}.site-header nav{display:flex;gap:8px}.site-header nav a{text-decoration:none;padding:10px 14px;border-radius:24px;color:#65594d;font-weight:600;font-size:.92rem}.site-header nav a.active,.site-header nav a:hover{background:#f6e9dc;color:#7b1e24}
+main{flex:1}.hero{background:radial-gradient(circle at 80% 20%,#a74935 0,#7b1e24 36%,#45161a 100%);color:#fff7eb;padding:clamp(54px,9vw,112px) clamp(22px,8vw,120px);min-height:330px;display:flex;align-items:center;justify-content:space-between;gap:28px;overflow:hidden}.hero-copy{max-width:680px}.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.17em;color:#bd8153}.hero .eyebrow{color:#f1c78a}.hero h1,.admin-page h1{font-family:'Playfair Display',Georgia,serif;font-size:clamp(2.4rem,6vw,4.8rem);line-height:1.06;margin:15px 0}.hero p{max-width:590px;line-height:1.8;color:#f6e0d3;font-size:1.08rem;margin:0 0 25px}.hero-decoration{display:flex;align-items:center;gap:18px;color:#f2c47e;font-size:clamp(1.5rem,3vw,3rem);opacity:.9;transform:rotate(-12deg);white-space:nowrap}.hero-decoration span:nth-child(2){font-family:serif;border:1px solid #dcae6b;border-radius:50%;padding:34px 24px}
+.button{border:0;border-radius:8px;padding:11px 17px;font-weight:700;text-decoration:none;display:inline-flex;justify-content:center;align-items:center;gap:8px}.button-primary{background:#7b1e24;color:white}.button-primary:hover{background:#5d171c}.button-light{background:#ffe3ac;color:#54171b}.button-outline{background:transparent;border:1px solid #d9cbbd;color:#5e4b3f}.button-outline:hover{background:#f6ede4}
+.menu-section{padding:55px clamp(18px,6vw,82px) 75px;max-width:1500px;margin:auto}.section-heading,.admin-heading,.admin-list-heading{display:flex;align-items:end;justify-content:space-between;gap:20px}.section-heading h2,.admin-page h2{font-family:'Playfair Display',serif;font-size:2.2rem;margin:7px 0 0}.item-count,.count-pill{font-size:.85rem;color:#776b5e;background:#f3e9dd;padding:7px 11px;border-radius:22px}.menu-controls{margin:26px 0 30px;display:flex;flex-direction:column;gap:17px}.menu-controls>input{width:100%;max-width:450px;border:1px solid #e0d4c7;background:white;border-radius:9px;padding:13px 15px;outline-color:#9b4a38}.category-list{display:flex;flex-wrap:wrap;gap:8px}.category-chip{border:1px solid #e3d5c5;background:white;color:#64564a;border-radius:24px;padding:8px 14px}.category-chip.active,.category-chip:hover{background:#7b1e24;border-color:#7b1e24;color:#fff}
+.menu-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}.menu-card{border:1px solid #eee1d4;border-radius:13px;overflow:hidden;background:white;box-shadow:0 5px 18px #4d281008;transition:transform .18s,box-shadow .18s}.menu-card:hover{transform:translateY(-3px);box-shadow:0 12px 25px #4d281014}.dish-art{height:130px;background:linear-gradient(135deg,#f8e8d4,#e8c9a6);display:flex;align-items:center;justify-content:center;gap:18px;color:#9a4a2c}.dish-art b{width:75px;height:75px;border-radius:50%;display:grid;place-items:center;background:#7b1e24;color:#ffe6b5;font-family:'Playfair Display',serif;font-size:2.3rem;box-shadow:0 0 0 7px #fff8ed80}.dish-art span{font-size:1.5rem}.menu-card-body{padding:20px}.card-kicker{text-transform:uppercase;letter-spacing:.12em;font-size:.68rem;font-weight:700;color:#a15c38;margin-bottom:9px}.dish-title-row{display:flex;align-items:start;justify-content:space-between;gap:10px}.dish-title-row h3{font-family:'Playfair Display',serif;font-size:1.25rem;margin:0;line-height:1.35}.price{white-space:nowrap;color:#7b1e24;font-size:1rem}.menu-card p{font-size:.9rem;line-height:1.65;color:#796e63;margin:12px 0}.serving{display:inline-block;color:#7c6d60;background:#f9f2ea;border-radius:5px;padding:5px 8px}
+.site-footer{background:#321719;color:#f9e9d9;padding:26px clamp(18px,6vw,82px);display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:.9rem}.site-footer span{color:#d8bdb0}.notice{padding:18px;border-radius:9px;background:#f6ecdf;color:#655244;margin:18px 0;line-height:1.6}.notice.error,.form-error{background:#fff0ee;color:#9c2929;padding:12px;border-radius:8px}.muted{color:#7d7166;line-height:1.6}.admin-page{max-width:1400px;margin:0 auto;padding:42px clamp(18px,5vw,65px) 70px}.admin-page h1{font-size:clamp(2rem,4vw,3rem)}.admin-page h2{font-size:1.45rem}.narrow{max-width:580px;min-height:65vh}.panel{background:white;border:1px solid #eadfd3;border-radius:13px;padding:24px;margin:25px 0;box-shadow:0 7px 24px #4d281008}.login-form,.editor-form{display:flex;flex-direction:column;gap:17px}.login-form label,.form-grid label{display:flex;flex-direction:column;gap:7px;font-weight:600;font-size:.88rem;color:#55483d}.login-form input,.form-grid input:not([type=checkbox]),.form-grid textarea{width:100%;border:1px solid #ddd0c2;border-radius:7px;padding:11px 12px;background:#fffdfb;outline-color:#9b4a38;color:#29251f}.hint{font-size:.83rem;color:#82776b}.panel-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.panel-heading h2{margin:0 0 5px}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px}.form-grid .full-field{grid-column:1/-1}.form-grid .check-label{display:flex;flex-direction:row;align-items:center;align-self:end;padding:12px 0}.check-label input{width:18px;height:18px;accent-color:#7b1e24}.form-actions{display:flex;gap:10px;flex-wrap:wrap}.form-error{font-size:.88rem}.form-success{background:#e8f6e9;color:#246a31;padding:11px;border-radius:7px;font-size:.9rem}.admin-list-heading{margin:38px 0 14px;align-items:center}.admin-list-heading h2{margin:0}.table-wrap{overflow:auto;border:1px solid #eadfd3;border-radius:10px;background:white}.admin-table{width:100%;border-collapse:collapse;text-align:left;min-width:760px}.admin-table th{font-size:.75rem;text-transform:uppercase;letter-spacing:.07em;background:#f7eee5;color:#756354;padding:13px}.admin-table td{padding:15px 13px;border-top:1px solid #f0e7de;font-size:.88rem;vertical-align:middle}.admin-table td small{display:block;color:#8b7c6f;margin-top:4px}.status{display:inline-block;border-radius:20px;padding:5px 8px;font-size:.72rem;font-weight:700}.status-on{background:#e5f5e7;color:#2b7037}.status-off{background:#f8e7e5;color:#9d3931}.text-button{border:0;background:transparent;color:#8b342d;font-weight:700;padding:7px 6px}.text-button:hover{text-decoration:underline}.danger-text{color:#a22b2b}.row-actions{display:flex;gap:7px}.count-pill{margin-left:6px;font-family:system-ui;font-size:.78rem}
+@media(max-width:900px){.menu-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-decoration{display:none}}
+@media(max-width:600px){.site-header{align-items:flex-start}.brand small{max-width:190px}.site-header nav{gap:0}.site-header nav a{padding:9px}.hero{min-height:300px}.menu-grid{grid-template-columns:1fr}.dish-art{height:115px}.section-heading h2{font-size:1.9rem}.form-grid{grid-template-columns:1fr}.form-grid .full-field{grid-column:auto}.panel{padding:17px}.admin-heading{align-items:flex-start}.admin-heading .button{margin-top:8px}}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.brand-logo {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.brand-text strong {
+  font-size: 1.1rem;
+}
+
+.brand-text small {
+  font-size: 0.75rem;
+}
+
+/* ===== Larger Desi Dawat company header ===== */
+
+.site-header {
+  min-height: 115px;
+  padding: 16px 4%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: #fffaf3;
+  border-bottom: 3px solid #c58b28;
+  box-shadow: 0 3px 12px rgba(55, 20, 15, 0.12);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.brand-logo {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.brand-text strong {
+  color: #801d24;
+  font-family: Georgia, serif;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.brand-text small {
+  color: #654b3b;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.site-header nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-shrink: 0;
+}
+
+.site-header nav a {
+  font-size: 15px;
+  padding: 12px 18px;
+}
+
+/* Smaller screens, including mobile phones */
+@media (max-width: 600px) {
+  .site-header {
+    min-height: 85px;
+    padding: 12px 4%;
+    gap: 10px;
+  }
+
+  .brand {
+    gap: 10px;
+  }
+
+  .brand-logo {
+    width: 58px;
+    height: 58px;
+  }
+
+  .brand-text strong {
+    font-size: 21px;
+  }
+
+  .brand-text small {
+    font-size: 10px;
+    letter-spacing: 0;
+  }
+
+  .site-header nav {
+    gap: 4px;
+  }
+
+  .site-header nav a {
+    font-size: 12px;
+    padding: 8px;
+  }
+}
+
+/* ===== Bilingual Desi Dawat promotional banner ===== */
+
+.promo-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 2.3fr) minmax(220px, 0.9fr);
+  gap: 28px;
+  align-items: stretch;
+  padding: 42px 5%;
+  color: #fffaf0;
+  background:
+    radial-gradient(ellipse at 70% 40%, #87351f 0%, transparent 48%),
+    linear-gradient(115deg, #101313, #24130e 55%, #080909);
+  border-bottom: 4px solid #d49b27;
+}
+
+.promo-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2px minmax(0, 1fr);
+  gap: 26px;
+  align-items: start;
+}
+
+.promo-finnish,
+.promo-english {
+  min-width: 0;
+}
+
+.promo-eyebrow {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: #efb52e;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.promo-finnish h1,
+.promo-english h2 {
+  margin: 0 0 14px;
+  color: #fffaf0;
+  font-family: Georgia, serif;
+  font-size: clamp(25px, 2.4vw, 38px);
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.promo-finnish h1 {
+  text-transform: uppercase;
+}
+
+.promo-english h2 {
+  color: #f3b52c;
+}
+
+.promo-subtitle {
+  margin: 0 0 24px;
+  font-family: Georgia, serif;
+  font-size: clamp(17px, 1.5vw, 23px);
+  line-height: 1.4;
+}
+
+.promo-divider {
+  width: 2px;
+  min-height: 100%;
+  background: linear-gradient(
+    transparent,
+    #d9a52d,
+    transparent
+  );
+}
+
+.promo-services {
+  display: grid;
+  gap: 15px;
+  margin: 20px 0;
+}
+
+.promo-service {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.promo-icon {
+  font-size: 29px;
+  flex-shrink: 0;
+}
+
+.promo-service strong,
+.promo-service small {
+  display: block;
+}
+
+.promo-service strong {
+  font-size: 16px;
+}
+
+.promo-service small {
+  margin-top: 4px;
+  color: #e2d5c5;
+  font-size: 13px;
+}
+
+.promo-phone {
+  display: inline-block;
+  margin-top: 5px;
+  color: #ffc447;
+  font-size: 16px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.promo-phone:hover {
+  text-decoration: underline;
+}
+
+.promo-address {
+  margin: 13px 0 0;
+  color: #f5e9d8;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.promo-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  border: 1px solid rgba(226, 177, 61, 0.4);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.promo-brand img {
+  width: clamp(115px, 13vw, 190px);
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 50%;
+  border: 2px solid #dca62d;
+  box-shadow: 0 0 24px rgba(223, 161, 35, 0.2);
+}
+
+.promo-brand h2 {
+  margin: 18px 0 5px;
+  color: #f7d27a;
+  font-family: Georgia, serif;
+  font-size: clamp(23px, 2vw, 32px);
+}
+
+.promo-brand > p {
+  margin: 4px 0;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+.promo-gold-line {
+  width: 80%;
+  height: 2px;
+  margin: 13px 0;
+  background: #dca62d;
+}
+
+.promo-brand .promo-brand-tagline {
+  color: #e7d9c7;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+/* Tablet and mobile layout */
+@media (max-width: 900px) {
+  .promo-banner {
+    grid-template-columns: 1fr;
+    padding: 32px 5%;
+  }
+
+  .promo-brand {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .promo-brand img {
+    width: 85px;
+  }
+
+  .promo-brand h2 {
+    margin: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .promo-main {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .promo-divider {
+    width: 100%;
+    min-height: 2px;
+    height: 2px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      #d9a52d,
+      transparent
+    );
+  }
+
+  .promo-finnish h1,
+  .promo-english h2 {
+    font-size: 27px;
+  }
+
+  .promo-subtitle {
+    font-size: 18px;
+  }
+
+  .promo-phone {
+    font-size: 14px;
+  }
+
+  .promo-brand {
+    justify-content: center;
+  }
+}
+
+/* Food photographs on menu cards */
+
+.dish-photo-wrap {
+  width: 100%;
+  height: 210px;
+  overflow: hidden;
+  background: #f2dfc7;
+}
+
+.dish-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.menu-card:hover .dish-photo {
+  transform: scale(1.04);
+}
+
+@media (max-width: 600px) {
+  .dish-photo-wrap {
+    height: 190px;
+  }
+}
+
+/* Shopping Cart */
+.cart-section {
+  max-width: 1100px;
+  margin: 50px auto;
+  padding: 32px;
+  background: #fffaf4;
+  border: 1px solid #ead7c5;
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+
+.cart-section .section-heading {
+  margin-bottom: 24px;
+}
+
+.cart-section h2 {
+  color: #651b20;
+  font-size: 28px;
+}
+
+.cart-section p {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.cart-items {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cart-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 18px;
+  background: #ffffff;
+  border: 1px solid #ead7c5;
+  border-radius: 10px;
+}
+
+.cart-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.cart-item-info strong {
+  color: #651b20;
+  font-size: 16px;
+}
+
+.cart-item-info span {
+  color: #765f50;
+  font-size: 13px;
+}
+
+.cart-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cart-item-actions button {
+  padding: 8px 12px;
+  border: 1px solid #8b252b;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #651b20;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.cart-item-actions button:hover {
+  background: #f5e6d5;
+}
+
+.cart-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 2px solid #ead7c5;
+  color: #651b20;
+  font-size: 20px;
+}
+
+.cart-note {
+  color: #765f50;
+  font-size: 13px;
+}
+
+.add-to-cart-btn {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 12px 20px;
+  background: #751e25;
+  color: #ffffff;
+  border: none;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.add-to-cart-btn:hover {
+  background: #511319;
+}
+
+@media (max-width: 600px) {
+  .cart-section {
+    margin: 28px 12px;
+    padding: 18px;
+  }
+
+  .cart-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cart-total {
+    font-size: 18px;
+  }
+}
+
+/* Floating shopping cart at the top-right */
+.floating-cart {
+  position: fixed;
+  top: 125px;
+  right: 24px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 20px;
+  background: #751e25;
+  color: #ffffff;
+  border: 2px solid #d9b16f;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.floating-cart span {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.floating-cart:hover {
+  background: #511319;
+}
+
+@media (max-width: 600px) {
+  .floating-cart {
+    top: 115px;
+    right: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+}
+
+/* Checkout form */
+.checkout-section form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 650px;
+}
+
+.checkout-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.checkout-field > label,
+.checkout-field legend {
+  font-weight: 600;
+  color: #651b20;
+}
+
+.checkout-field input:not([type="radio"]),
+.checkout-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #d8c3b2;
+  border-radius: 7px;
+  font: inherit;
+  background: #ffffff;
+  color: #2b211d;
+}
+
+.checkout-field textarea {
+  resize: vertical;
+}
+
+.checkout-field input:focus,
+.checkout-field textarea:focus {
+  outline: 2px solid #b87935;
+  outline-offset: 1px;
+}
+
+.checkout-field label:has(input[type="radio"]) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-weight: 400;
+  color: #2b211d;
+}
+
+.checkout-field input[type="radio"] {
+  accent-color: #751e25;
+}
+
+.checkout-section .add-to-cart-btn {
+  margin-top: 0;
+  margin-right: 10px;
+}
+
+@media (max-width: 600px) {
+  .checkout-section {
+    margin: 20px 12px;
+    padding: 18px;
+  }
+}
+
+/* Desi Dawat branded receipt */
+.receipt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow-y: auto;
+  padding: 24px;
+  background: rgba(30, 15, 20, 0.72);
+}
+
+.receipt-card {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #fffaf5;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.receipt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.receipt-paper {
+  max-width: 650px;
+  margin: 0 auto;
+  padding: 30px;
+  color: #30252a;
+  background: #fff;
+  border: 1px solid #e3d2b4;
+  border-top: 6px solid #7a1735;
+  font-size: 14px;
+}
+
+.receipt-brand {
+  text-align: center;
+}
+
+.receipt-brand img {
+  display: block;
+  width: 110px;
+  height: 110px;
+  margin: 0 auto 12px;
+  object-fit: contain;
+}
+
+.receipt-brand h1 {
+  margin: 0;
+  color: #7a1735;
+  letter-spacing: 2px;
+}
+
+.receipt-brand p {
+  margin: 5px 0;
+}
+
+.receipt-paper h2,
+.receipt-paper h3 {
+  color: #7a1735;
+}
+
+.receipt-paper hr {
+  margin: 18px 0;
+  border: 0;
+  border-top: 1px solid #d7bd8b;
+}
+
+.receipt-items {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.receipt-items th,
+.receipt-items td {
+  padding: 8px 5px;
+  border-bottom: 1px solid #eee2d2;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.receipt-items th {
+  color: #7a1735;
+  background: #fbf2e6;
+}
+
+.receipt-total {
+  padding: 12px;
+  color: #7a1735;
+  background: #fbf2e6;
+  border-bottom: 2px solid #b08a45;
+}
+
+.receipt-thanks {
+  color: #7a1735;
+  font-weight: 600;
+  text-align: center;
+}
+
+
+/* Bilingual receipt text */
+.receipt-english {
+  display: block;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+/* Customer details: two side-by-side columns */
+.receipt-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  row-gap: 8px;
+  align-items: start;
+}
+
+.receipt-details-grid p {
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+
+/* Print only the selected Desi Dawat receipt */
+@media print {
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Hide everything except the receipt */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .print-receipt-only,
+  .print-receipt-only * {
+    visibility: visible !important;
+  }
+
+  .print-receipt-only {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .print-receipt-only .receipt-card {
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .receipt-actions,
+  .no-print {
+    display: none !important;
+  }
+
+  .receipt-paper {
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
+    font-size: 12px !important;
+    overflow: visible !important;
+    border: 1px solid #e3d2b4 !important;
+    border-top: 5px solid #7a1735 !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .receipt-brand {
+    text-align: center !important;
+  }
+
+  .receipt-brand img {
+    display: block !important;
+    width: 90px !important;
+    height: 90px !important;
+    margin: 0 auto 6px !important;
+    object-fit: contain !important;
+  }
+
+  .receipt-brand h1 {
+    margin: 0 !important;
+    font-size: 24px !important;
+  }
+
+  .receipt-brand p {
+    margin: 3px 0 !important;
+  }
+
+  .receipt-paper hr {
+    margin: 8px 0 !important;
+  }
+
+  .receipt-paper h2,
+  .receipt-paper h3 {
+    margin: 6px 0 4px !important;
+  }
+
+  /* Keep customer details side by side when printing */
+  .receipt-details-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: 12px !important;
+    row-gap: 3px !important;
+    align-items: start !important;
+  }
+
+  .receipt-details-grid p {
+    margin: 3px 0 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .receipt-items {
+    width: 100% !important;
+    font-size: 11px !important;
+    border-collapse: collapse !important;
+  }
+
+  .receipt-items th,
+  .receipt-items td {
+    padding: 5px !important;
+  }
+
+  .receipt-items tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .receipt-total {
+    padding: 6px !important;
+  }
+
+  .receipt-payment-note,
+  .receipt-thanks {
+    margin: 4px 0 !important;
+    padding: 5px !important;
+    font-size: 10px !important;
+  }
+}
+
+
+/* Desi Dawat — Compact Opening Hours Strip */
+
+.opening-hours-section {
+  width: 100%;
+  box-sizing: border-box;
+  background: #6b1728;
+  color: #fffaf3;
+  padding: 20px 24px;
+  border-top: 3px solid #c99a36;
+  border-bottom: 3px solid #c99a36;
+}
+
+.opening-hours-card {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.opening-hours-card h2 {
+  color: #f2cc77;
+  font-family: Georgia, serif;
+  font-size: 23px;
+  margin: 0 0 16px;
+  letter-spacing: 1px;
+}
+
+
+.opening-hours-subtitle {
+  display: none;
+}
+
+.opening-hours-row {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: top;
+  align-items: center;
+  justify-content: center;
+  width: 25%;
+  box-sizing: border-box;
+  gap: 5px;
+  padding: 5px 8px;
+  border-right: 1px solid rgba(242, 204, 119, 0.4);
+}
+
+.opening-hours-row:last-of-type {
+  border-right: none;
+}
+
+.opening-hours-row span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.opening-hours-row span strong {
+  color: #fffaf3;
+  font-size: 14px;
+}
+
+.opening-hours-row small {
+  color: #f2cc77;
+  font-size: 12px;
+}
+
+.opening-hours-row > strong {
+  color: #fffaf3;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.opening-hours-welcome {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .opening-hours-section {
+    padding: 12px 4px;
+  }
+
+  .opening-hours-card h2 {
+    font-size: 17px;
+    margin-bottom: 8px;
+  }
+
+  .opening-hours-row {
+    padding: 4px 2px;
+  }
+
+  .opening-hours-row span strong,
+  .opening-hours-row > strong {
+    font-size: 11px;
+  }
+
+  .opening-hours-row small {
+    font-size: 9px;
+  }
+}
+
+/* Desi Dawat order confirmation landing page */
+.order-confirmation-page {
+  min-height: 75vh;
+  padding: 36px 16px;
+  background: #f8f3eb;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.order-confirmation-card {
+  width: 100%;
+  max-width: 680px;
+  padding: 32px;
+  background: #ffffff;
+  border: 2px solid #c79b35;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(70, 30, 35, 0.12);
+  color: #38262a;
+}
+
+.confirmation-logo {
+  display: block;
+  width: 115px;
+  height: 115px;
+  object-fit: contain;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+}
+
+.confirmation-success {
+  text-align: center;
+  font-size: 34px;
+  margin-bottom: 12px;
+}
+
+.order-confirmation-card h1 {
+  color: #76263a;
+  text-align: center;
+  font-size: 28px;
+  margin: 12px 0 8px;
+}
+
+.order-confirmation-card h2 {
+  color: #76263a;
+  text-align: center;
+  font-size: 20px;
+  margin: 0 0 20px;
+}
+
+.confirmation-order-number {
+  text-align: center;
+  color: #725b2c;
+  font-weight: 600;
+}
+
+.order-confirmation-card h3 {
+  color: #76263a;
+  margin-bottom: 8px;
+}
+
+.confirmation-items {
+  padding-left: 28px;
+  line-height: 1.9;
+}
+
+.confirmation-items li {
+  padding-left: 5px;
+  margin-bottom: 4px;
+}
+
+.confirmation-message {
+  margin-top: 24px;
+  padding: 20px;
+  background: #fbf5e9;
+  border-left: 5px solid #c79b35;
+  border-radius: 10px;
+  line-height: 1.7;
+}
+
+.confirmation-thanks {
+  text-align: center;
+  color: #76263a;
+  font-weight: 600;
+  line-height: 1.8;
+  margin: 24px 0;
+}
+
+@media (max-width: 600px) {
+  .order-confirmation-page {
+    padding: 20px 10px;
+  }
+
+  .order-confirmation-card {
+    padding: 22px 16px;
+  }
+
+  .order-confirmation-card h1 {
+    font-size: 23px;
+  }
+
+  .confirmation-message {
+    padding: 15px;
+  }
+}
