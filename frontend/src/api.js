@@ -74,3 +74,29 @@ export const saveOpeningHours = (token, hours) =>
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ hours }),
   });
+
+  
+export const getAdminInventory = (token) =>
+  request("/admin/inventory", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+export const addInventoryItem = (token, item) =>
+  request("/admin/inventory", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(item),
+  });
+
+export const updateInventoryItem = (token, id, item) =>
+  request(`/admin/inventory/${id}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(item),
+  });
+
+export const deleteInventoryItem = (token, id) =>
+  request(`/admin/inventory/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });

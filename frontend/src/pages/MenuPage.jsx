@@ -409,7 +409,7 @@ function handleCheckoutSubmit(event) {
         )}
         <div className="menu-grid">
           {visibleItems.map((item) => {
-            const imageUrl = getDishImage(item.item_name);
+            const imageUrl = item.image_url || getDishImage(item.item_name);
             return (
               <article className="menu-card" key={item.item_id}>
                 {imageUrl ? (

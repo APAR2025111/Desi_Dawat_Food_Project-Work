@@ -368,18 +368,23 @@ main{flex:1}.hero{background:radial-gradient(circle at 80% 20%,#a74935 0,#7b1e24
 
 /* Food photographs on menu cards */
 
+
 .dish-photo-wrap {
   width: 100%;
   height: 210px;
   overflow: hidden;
-  background: #f2dfc7;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .dish-photo {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   transition: transform 0.3s ease;
 }
 
@@ -1110,4 +1115,176 @@ main{flex:1}.hero{background:radial-gradient(circle at 80% 20%,#a74935 0,#7b1e24
   .confirmation-message {
     padding: 15px;
   }
+}
+
+/* Desi Dawat Inventory Report - Print Settings */
+.inventory-report-actions {
+  margin: 16px 0;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .inventory-admin,
+  .inventory-admin * {
+    visibility: visible !important;
+  }
+
+  .inventory-admin {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    background: white !important;
+    color: #222 !important;
+    box-shadow: none !important;
+  }
+
+  .inventory-report-actions,
+  .inventory-admin form,
+  .inventory-admin button,
+  .inventory-admin input,
+  .inventory-admin select,
+  .inventory-admin textarea {
+    display: none !important;
+  }
+
+  .inventory-admin h2 {
+    color: #76263a !important;
+    text-align: center;
+    font-size: 24px;
+  }
+
+  .inventory-admin table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10px;
+  }
+
+  .inventory-admin th,
+  .inventory-admin td {
+    border: 1px solid #c9b08a !important;
+    padding: 5px !important;
+    color: #222 !important;
+  }
+
+  .inventory-admin th {
+    background: #f8efe2 !important;
+    font-weight: bold;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+}
+/* Hide the business header on the normal admin screen */
+.inventory-print-header {
+  display: none;
+}
+
+/* Show the business header only in the print preview */
+@media print {
+  .inventory-print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 16px;
+    color: #333;
+  }
+
+  .inventory-print-header img {
+    display: block;
+    width: 90px;
+    height: 90px;
+    object-fit: contain;
+    margin: 0 auto 8px;
+  }
+
+  .inventory-print-header h1 {
+    font-size: 22px;
+    margin: 4px 0;
+    color: #8b2635;
+  }
+
+  .inventory-print-header p {
+    font-size: 11px;
+    margin: 3px 0;
+  }
+
+  .inventory-print-header h2 {
+    font-size: 16px;
+    margin: 12px 0;
+    color: #8b2635;
+  }
+}
+/* Make Admin opening-hours and inventory inputs easier to use */
+.opening-hours-section input[type="time"] {
+  width: 145px;
+  min-height: 38px;
+  font-size: 16px;
+  padding: 5px;
+  box-sizing: border-box;
+}
+
+.inventory-admin input:not([type="checkbox"]),
+.inventory-admin select,
+.inventory-admin textarea {
+  min-height: 38px;
+  font-size: 15px;
+  padding: 7px 9px;
+  box-sizing: border-box;
+}
+
+.inventory-admin input[type="text"],
+.inventory-admin input[type="number"],
+.inventory-admin input[type="date"],
+.inventory-admin textarea {
+  width: 100%;
+  max-width: 360px;
+}
+
+.inventory-admin textarea {
+  min-height: 80px;
+}
+/* Compact horizontal opening hours on flyers */
+.flyer-opening-hours {
+  margin: 8px 0 12px;
+  padding: 8px;
+  border-top: 2px solid #c99a36;
+  border-bottom: 1px solid #c99a36;
+  font-size: 10px;
+}
+
+.flyer-opening-hours > strong {
+  display: block;
+  text-align: center;
+  margin-bottom: 6px;
+  color: #7b1728;
+}
+
+.flyer-hours-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.flyer-hours-day {
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.flyer-hours-day > strong,
+.flyer-hours-day > small {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.flyer-hours-day p {
+  margin: 3px 0;
+  line-height: 1.3;
 }

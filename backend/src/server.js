@@ -6,9 +6,34 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { pool } from "./db.js";
 import { requireAdmin } from "./auth.js";
-
+import multer from "multer";
 dotenv.config();
+import path from "path";
+import fs from "fs";
 
+const uploadDir = path.join(process.cwd(), "uploads");
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: uploadDir,
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed."));
+    }
+  },
+});
 const app = express();
 const port = Number(process.env.PORT || 3001);
 
@@ -18,7 +43,7 @@ app.use(
   })
 );
 app.use(express.json({ limit: "100kb" }));
-
+app.use("/uploads", express.static(uploadDir));
 
 /* Opening hours: public read and admin update */
 
@@ -122,6 +147,7 @@ console.log("Opening hours received:", JSON.stringify(hours, null, 2));
 });
 
 
+
 const publicColumns = `
   item_id,
   main_category,
@@ -130,8 +156,10 @@ const publicColumns = `
   quantity_serving,
   price_eur,
   short_information,
+  image_url,
   is_available
 `;
+
 
 function cleanItem(body) {
   const item = {
@@ -141,6 +169,7 @@ function cleanItem(body) {
     quantity_serving: String(body.quantity_serving ?? "").trim(),
     price_eur: Number(body.price_eur),
     short_information: String(body.short_information ?? "").trim(),
+    image_url: String(body.image_url ?? "").trim(),
     is_available:
       body.is_available === true ||
       body.is_available === 1 ||
@@ -295,8 +324,8 @@ app.post("/api/admin/menu", requireAdmin, async (req, res) => {
     const [result] = await pool.execute(
       `INSERT INTO menu_items
        (main_category, subcategory, item_name, quantity_serving,
-        price_eur, short_information, is_available)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+ price_eur, short_information, image_url, is_available)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         item.main_category,
         item.subcategory || null,
@@ -304,7 +333,8 @@ app.post("/api/admin/menu", requireAdmin, async (req, res) => {
         item.quantity_serving || null,
         item.price_eur,
         item.short_information || null,
-        item.is_available ? 1 : 0,
+item.image_url || null,
+item.is_available ? 1 : 0,
       ]
     );
 
@@ -349,8 +379,9 @@ app.put("/api/admin/menu/:id", requireAdmin, async (req, res) => {
            quantity_serving = ?,
            price_eur = ?,
            short_information = ?,
-           is_available = ?
-       WHERE item_id = ?`,
+image_url = ?,
+is_available = ?
+WHERE item_id = ?`,
       [
         item.main_category,
         item.subcategory || null,
@@ -358,8 +389,9 @@ app.put("/api/admin/menu/:id", requireAdmin, async (req, res) => {
         item.quantity_serving || null,
         item.price_eur,
         item.short_information || null,
-        item.is_available ? 1 : 0,
-        id,
+item.image_url || null,
+item.is_available ? 1 : 0,
+id,
       ]
     );
 
@@ -907,7 +939,139 @@ app.post("/api/delivery-quote", async (req, res) => {
     });
   }
 });
+// Admin: upload a food picture
+app.post(
+  "/api/admin/upload",
+  requireAdmin,
+  upload.single("image"),
+  (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({
+        error: "Please select an image file.",
+      });
+    }
 
+    res.json({
+      message: "Image uploaded successfully.",
+      image_url: `/uploads/${req.file.filename}`,
+    });
+  }
+);
+
+app.use("/uploads", express.static(uploadDir));
+
+const inventoryFields = [
+  "item_name",
+  "item_name_hindi",
+  "item_name_finnish",
+  "rack_number",
+  "item_size",
+  "quantity",
+  "unit",
+  "availability",
+  "expiry_date",
+  "expiry_note",
+  "notes",
+];
+
+app.get("/api/admin/inventory", requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT * FROM inventory_items ORDER BY item_id DESC"
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("Load inventory error:", err);
+    res.status(500).json({ message: "Failed to load inventory." });
+  }
+});
+
+app.post("/api/admin/inventory", requireAdmin, async (req, res) => {
+  try {
+    const values = inventoryFields.map((field) => {
+      const value = req.body[field];
+      return value === "" || value === undefined ? null : value;
+    });
+
+    if (!req.body.item_name?.trim()) {
+      return res.status(400).json({ message: "Item name is required." });
+    }
+
+    const columns = inventoryFields.join(", ");
+    const placeholders = inventoryFields.map(() => "?").join(", ");
+
+    const [result] = await pool.query(
+      `INSERT INTO inventory_items (${columns}) VALUES (${placeholders})`,
+      values
+    );
+
+    res.status(201).json({
+      message: "Inventory item added successfully.",
+      item_id: result.insertId,
+    });
+  } catch (err) {
+    console.error("Add inventory error:", err);
+    res.status(500).json({ message: "Failed to add inventory item." });
+  }
+});
+
+app.put("/api/admin/inventory/:id", requireAdmin, async (req, res) => {
+  try {
+    const updates = inventoryFields.filter((field) =>
+      Object.prototype.hasOwnProperty.call(req.body, field)
+    );
+
+    if (!updates.length) {
+      return res.status(400).json({ message: "No fields to update." });
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(req.body, "item_name") &&
+      !req.body.item_name?.trim()
+    ) {
+      return res.status(400).json({ message: "Item name is required." });
+    }
+
+    const values = updates.map((field) => {
+      const value = req.body[field];
+      return value === "" || value === undefined ? null : value;
+    });
+
+    const [result] = await pool.query(
+      `UPDATE inventory_items SET ${updates
+        .map((field) => `${field} = ?`)
+        .join(", ")} WHERE item_id = ?`,
+      [...values, req.params.id]
+    );
+
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: "Inventory item not found." });
+    }
+
+    res.json({ message: "Inventory item updated successfully." });
+  } catch (err) {
+    console.error("Update inventory error:", err);
+    res.status(500).json({ message: "Failed to update inventory item." });
+  }
+});
+
+app.delete("/api/admin/inventory/:id", requireAdmin, async (req, res) => {
+  try {
+    const [result] = await pool.query(
+      "DELETE FROM inventory_items WHERE item_id = ?",
+      [req.params.id]
+    );
+
+    if (!result.affectedRows) {
+      return res.status(404).json({ message: "Inventory item not found." });
+    }
+
+    res.json({ message: "Inventory item deleted successfully." });
+  } catch (err) {
+    console.error("Delete inventory error:", err);
+    res.status(500).json({ message: "Failed to delete inventory item." });
+  }
+});
 
 app.listen(port, "::", () => {
     console.log(`Desi Dawat API listening at http://localhost:${port}`);

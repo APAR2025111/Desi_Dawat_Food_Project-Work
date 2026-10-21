@@ -1,5 +1,6 @@
 import React from "react";
 import { useCallback, useEffect, useState } from "react";
+
 import {
   deleteMenuItem,
   deleteOrder,
@@ -10,8 +11,13 @@ import {
   updateOrderStatus,
   updateDeliveryCharge,
   getOpeningHours,
-  saveOpeningHours
+  saveOpeningHours,
+  getAdminInventory,
+  addInventoryItem,
+  updateInventoryItem,
+  deleteInventoryItem,
 } from "../api.js";
+
 
 const blank = {
   main_category: "", subcategory: "", item_name: "", quantity_serving: "1 serving",
@@ -23,6 +29,30 @@ export default function AdminPage() {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
   const [items, setItems] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [inventoryMessage, setInventoryMessage] = useState("");
+  const [inventoryError, setInventoryError] = useState("");
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryCategory, setInventoryCategory] = useState("packing_material");
+
+  
+  const [inventoryForm, setInventoryForm] = useState({
+  item_id: null,
+  item_category: "packing_material",
+  item_name: "",
+  item_name_hindi: "",
+  item_name_finnish: "",
+  rack_number: "",
+  item_size: "",
+  quantity: "",
+  unit: "pieces",
+  availability: "available",
+  expiry_date: "",
+  expiry_note: "",
+  notes: "",
+});
+
+
   const [orders, setOrders] = useState([]);
   const [receiptOrder, setReceiptOrder] = useState(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -70,16 +100,16 @@ const handleGenerateFlyer = () => {
   if (flyerDay === "all-menu") {
   return (
     isAvailable &&
-    selectedAllMenuItems.includes(item.item_id)
+    selectedAllMenuItems.map(String).includes(String(item.item_id))
   );
 }
 
   return (
     isAvailable &&
-    selectedFlyerItems.includes(item.item_id)
+    selectedFlyerItems.map(String).includes(String(item.item_id))
   );
 });
-if (availableItems.length === 0) {
+if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
   alert("No available menu items to include in the flyer.");
   return;
 }
@@ -87,6 +117,105 @@ if (availableItems.length === 0) {
 
     if (!flyerWindow) {
       alert("Please allow pop-ups to open the flyer.");
+      return;
+    }
+
+    if (flyerFormat === "welcome-message") {
+      flyerWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Desi Dawat - Welcome_message</title>
+            <style>
+              body {
+                font-family: Georgia, serif;
+                color: #30150e;
+                background: #fff8ef;
+                margin: 0;
+                padding: 18mm;
+                line-height: 1.4;
+              }
+              header {
+                text-align: center;
+                border-bottom: 3px solid #c79b35;
+                padding-bottom: 10px;
+                margin-bottom: 12px;
+              }
+              header img {
+                width: 85px;
+                height: 85px;
+                object-fit: contain;
+              }
+              h1, h2, h3 { color: #791d2a; }
+              h1 { margin: 5px 0; }
+              h2 { font-size: 17px; margin: 12px 0 6px; }
+              p { margin: 5px 0; }
+              hr { border: 0; border-top: 1px solid #c79b35; margin: 10px 0; }
+              a { color: #791d2a; overflow-wrap: anywhere; }
+              @page { size: A4; margin: 12mm; }
+              @media print {
+                body { padding: 0; font-size: 11pt; }
+                h2 { font-size: 15pt; }
+              }
+            </style>
+          </head>
+          <body>
+            <header>
+              <img src="/images/LOGO.jpeg" alt="Desi Dawat logo" />
+              <h1>DESI DAWAT – OULU</h1>
+              <p>Intialainen kasvisruoka / Indian Vegetarian Food</p>
+              <p>Pateniementie 59, 90800 Oulu, Finland</p>
+            </header>
+
+            <h2>🇫🇮 SUOMEKSI</h2>
+            <p>Tarjoamme tuoretta ja aitoa intialaista kasvisruokaa: herkullisia aterioita, leipiä, riisiä ja välipaloja.</p>
+            <p>🚗 Kotiinkuljetus ja nouto saatavilla!</p>
+            <p>❤️ Lämpimästi tervetuloa!</p>
+
+            <hr />
+
+            <h2>🇬🇧 ENGLISH</h2>
+            <p>We offer fresh, authentic Indian vegetarian food, including delicious meals, breads, rice and snacks.</p>
+            <p>🚗 Home delivery and pickup available!</p>
+            <p>❤️ A warm welcome to everyone!</p>
+
+            <hr />
+
+            <h2>📋 MENU / RUOKALISTA &amp; ORDERS / TILAUKSET</h2>
+            <p>
+              <a href="https://drive.google.com/file/d/1hFz08DQoDrXuKx1zyj_nTuQZHui1b3TQ/view?usp=sharing" target="_blank" rel="noopener noreferrer">
+                Open Menu / Avaa ruokalista
+              </a>
+            </p>
+
+            <h2>📲 HOW TO ORDER / NÄIN TILAAT</h2>
+            <p>🇫🇮 Lähetä WhatsApp-viesti ja ilmoita tuotenumero, määrä sekä toivottu nouto- tai toimitusaika.</p>
+            <p>🇬🇧 Send a WhatsApp message with the item number, quantity, and preferred pickup or delivery time.</p>
+            <p><a href="https://wa.me/358449803211">WhatsApp: +358 44 980 3211</a></p>
+
+            <hr />
+
+            <h2>🇫🇮 AUKIOLOAJAT / 🇬🇧 OPENING HOURS</h2>
+            <p>Ma–To / Mon–Thu: 19:00–22:00</p>
+            <p>Pe / Fri: 19:00–23:00</p>
+            <p>La / Sat: 11:00–14:00, 18:00–22:00</p>
+            <p>Su / Sun: 11:00–14:00, 18:00–21:00</p>
+
+            <hr />
+
+            <h2>📞 QUERIES &amp; ASSISTANCE / KYSYMYKSET JA APU</h2>
+            <p><a href="tel:+358413279444">+358 41 327 9444</a></p>
+
+            <p>🙏 Thank you for choosing Desi Dawat! ❤️</p>
+            <p>🙏 Kiitos, että valitset Desi Dawatin! ❤️</p>
+          </body>
+        </html>
+      `);
+      flyerWindow.document.close();
+      flyerWindow.focus();
+      flyerWindow.print();
       return;
     }
 
@@ -174,6 +303,41 @@ if (availableItems.length === 0) {
               body { padding: 0; }
               .page { min-height: 95vh; }
             }
+
+            .flyer-opening-hours {
+  margin: 8px 0 12px;
+  padding: 8px;
+  border-top: 2px solid #c99a36;
+  border-bottom: 1px solid #c99a36;
+  font-size: 10px;
+}
+
+.flyer-hours-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.flyer-hours-day {
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.flyer-hours-day strong,
+.flyer-hours-day small {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.flyer-hours-day p {
+  margin: 3px 0;
+  line-height: 1.3;
+}
+  .page + .page {
+  page-break-before: always;
+  break-before: page;
+}
           </style>
         </head>
         <body>
@@ -194,6 +358,45 @@ if (availableItems.length === 0) {
       sun: "SUNDAY"
     })[flyerDay] + " MENU / PÄIVÄN RUOKALISTA"}</h2>
             </header>
+            ${(() => {
+  const days = [
+    { key: "mon_thu", fi: "Maanantai–torstai", en: "Monday–Thursday" },
+    { key: "fri", fi: "Perjantai", en: "Friday" },
+    { key: "sat", fi: "Lauantai", en: "Saturday" },
+    { key: "sun", fi: "Sunnuntai", en: "Sunday" },
+  ];
+
+  const formatTime = (time) => time ? String(time).slice(0, 5) : "";
+
+  return `
+    <div class="flyer-opening-hours">
+      <strong>AUKIOLOAJAT / OPENING HOURS</strong>
+      <div class="flyer-hours-grid">
+        ${days.map(({ key, fi, en }) => {
+          const day = openingHours.find((d) => d.day_key === key);
+          if (!day) return "";
+
+          const morning = day.morning_closed
+            ? "Suljettu / Closed"
+            : `${formatTime(day.morning_open)}–${formatTime(day.morning_close)}`;
+
+          const evening = day.evening_closed
+            ? "Suljettu / Closed"
+            : `${formatTime(day.evening_open)}–${formatTime(day.evening_close)}`;
+
+          return `
+            <div class="flyer-hours-day">
+              <strong>${fi}</strong>
+              <small>${en}</small>
+              <p>Aamu / Morning: ${morning}</p>
+              <p>Ilta / Evening: ${evening}</p>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+})()}
             <main id="menu"></main>
           </section>
 
@@ -206,6 +409,8 @@ if (availableItems.length === 0) {
                     <h1>TILAUSOHJEET</h1>
                     <p>HOW TO ORDER</p>
                   </header>
+                  <p>📍 Pateniementie 59, 90800 Oulu, Finland</p>
+<br />
                   <h2>📲 Näin tilaat / How to Order</h2>
                   <p>WhatsApp: +358 449803211</p>
                   <p>Soita / Call: +358 449803211</p>
@@ -314,9 +519,13 @@ const imageFiles = {
 };
 
 
-image.src = imageFiles[imageName]
-  ? "/images/" + imageFiles[imageName]
-  : "/images/LOGO.jpeg";
+const savedImageUrl = String(dish.image_url || "").trim();
+
+image.src = savedImageUrl
+  ? savedImageUrl
+  : imageFiles[imageName]
+    ? "/images/" + imageFiles[imageName]
+    : "/images/LOGO.jpeg";
 
 image.alt = imageFiles[imageName]
   ? dish.item_name
@@ -354,6 +563,71 @@ console.log("Dish name HTML:", name.innerHTML);
               });
             });
           </script>
+
+<section class="page closing-page" style="page-break-before: always; break-before: page;">
+  <header>
+    <img src="/images/LOGO.jpeg" alt="Desi Dawat logo" />
+    <h1>DESI DAWAT – OULU</h1>
+    <p>Intialainen kasvisruoka / Indian Vegetarian Food</p>
+    <p>Pateniementie 59, 90800 Oulu, Finland</p>
+  </header>
+
+  <h2>🇫🇮 SUOMEKSI</h2>
+  <p>Tarjoamme tuoretta ja aitoa intialaista kasvisruokaa: herkullisia aterioita, leipiä, riisiä ja välipaloja.</p>
+  <p>🚗 Kotiinkuljetus ja nouto saatavilla!</p>
+  <p>❤️ Lämpimästi tervetuloa!</p>
+
+  <hr />
+
+  <h2>🇬🇧 ENGLISH</h2>
+  <p>We offer fresh, authentic Indian vegetarian food, including delicious meals, breads, rice and snacks.</p>
+  <p>🚗 Home delivery and pickup available!</p>
+  <p>❤️ A warm welcome to everyone!</p>
+
+  <hr />
+
+  <h2>📋 MENU / RUOKALISTA &amp; ORDERS / TILAUKSET</h2>
+  <p>
+    <a href="https://drive.google.com/file/d/1hFz08DQoDrXuKx1zyj_nTuQZHui1b3TQ/view?usp=sharing">
+      Open Menu / Avaa ruokalista
+    </a>
+  </p>
+
+  <h2>📲 HOW TO ORDER / NÄIN TILAAT</h2>
+  <p>🇫🇮 Lähetä WhatsApp-viesti ja ilmoita tuotenumero, määrä sekä toivottu nouto- tai toimitusaika.</p>
+  <p>🇬🇧 Send a WhatsApp message with the item number, quantity, and preferred pickup or delivery time.</p>
+  <p>
+    <a href="https://wa.me/358449803211">WhatsApp: +358 44 980 3211</a>
+  </p>
+
+  <hr />
+
+  <h2>🇫🇮 AUKIOLOAJAT / 🇬🇧 OPENING HOURS</h2>
+  <p>Ma–To / Mon–Thu: 19:00–22:00</p>
+  <p>Pe / Fri: 19:00–23:00</p>
+  <p>La / Sat: 11:00–14:00, 18:00–22:00</p>
+  <p>Su / Sun: 11:00–14:00, 18:00–21:00</p>
+
+  <hr />
+
+  <h2>📞 QUERIES &amp; ASSISTANCE / KYSYMYKSET JA APU</h2>
+  <p><a href="tel:+358413279444">+358 41 327 9444</a></p>
+
+  <p>🙏 Thank you for choosing Desi Dawat! ❤️</p>
+  <p>🙏 Kiitos, että valitset Desi Dawatin! ❤️</p>
+  <div class="whatsapp-qr">
+  <h3>For More Updates, Join Our WhatsApp Group!</h3>
+  <p>Lisää päivityksiä varten liity WhatsApp-ryhmäämme!</p>
+  <img
+  src="/images/WhatsApp_Group_QR.jpeg"
+  alt="Desi Dawat WhatsApp group QR code"
+  style="width: 150px; height: 150px; object-fit: contain;"
+/>
+  <p>Scan this QR code with WhatsApp to join our group.</p>
+</div>
+</section>
+
+
         </body>
       </html>
     `);
@@ -384,6 +658,30 @@ const loadOrders = useCallback(async (activeToken = token) => {
   }
 }, []);
 
+const loadInventory = useCallback(async (activeToken = token) => {
+  if (!activeToken) return;
+
+  setInventoryLoading(true);
+  setInventoryError("");
+
+  try {
+    const data = await getAdminInventory(activeToken);
+    setInventory(data);
+  } catch (err) {
+    setInventoryError(err.message || "Failed to load inventory.");
+  } finally {
+    setInventoryLoading(false);
+  }
+}, [token]);
+
+
+useEffect(() => {
+  if (token) {
+    loadInventory(token);
+  } else {
+    setInventory([]);
+  }
+}, [token, loadInventory]);
 
   useEffect(() => { if (token) loadItems(token); }, [token, loadItems]);
   
@@ -418,6 +716,91 @@ async function handleDeleteOrder(order) {
     setError(err.message);
   }
 }
+
+
+function resetInventoryForm() {
+  setInventoryForm({
+    item_id: null,
+    item_category: inventoryCategory,
+    item_name: "",
+    item_name_hindi: "",
+    item_name_finnish: "",
+    rack_number: "",
+    item_size: "",
+    quantity: "",
+    unit: "pieces",
+    availability: "available",
+    expiry_date: "",
+    expiry_note: "",
+    notes: "",
+  });
+}
+
+async function handleSaveInventory(event) {
+  event.preventDefault();
+  setInventoryError("");
+  setMessage("");
+
+  try {
+  const quantity = Number(inventoryForm.quantity);
+
+  if (
+    inventoryForm.quantity === "" ||
+    !Number.isInteger(quantity) ||
+    quantity < 0
+  ) {
+    setInventoryError("Quantity must be a whole number (0 or greater).");
+    return;
+  }
+    const payload = {
+      ...inventoryForm,
+      item_category: inventoryCategory,
+    };
+
+    if (inventoryForm.item_id) {
+      await updateInventoryItem(token, inventoryForm.item_id, payload);
+      setMessage("Inventory item updated successfully.");
+    } else {
+      await addInventoryItem(token, payload);
+      setMessage("Inventory item added successfully.");
+    }
+
+    await loadInventory(token);
+    resetInventoryForm();
+  } catch (err) {
+    setInventoryError(err.message || "Failed to save inventory item.");
+  }
+}
+
+function handleEditInventory(item) {
+  setInventoryForm({
+    ...item,
+    quantity: item.quantity ?? "",
+    expiry_date: item.expiry_date
+      ? String(item.expiry_date).slice(0, 10)
+      : "",
+  });
+}
+
+async function handleDeleteInventory(item) {
+  const confirmed = window.confirm(
+    `Delete "${item.item_name}" from inventory? This cannot be undone.`
+  );
+
+  if (!confirmed) return;
+
+  setInventoryError("");
+  setMessage("");
+
+  try {
+    await deleteInventoryItem(token, item.item_id);
+    await loadInventory(token);
+    setMessage("Inventory item deleted successfully.");
+  } catch (err) {
+    setInventoryError(err.message || "Failed to delete inventory item.");
+  }
+}
+
 
 async function handleSaveDeliveryCharge(order) {
   const input = document.getElementById(
@@ -621,6 +1004,60 @@ Delivery Charge saved for order #${order.order_id}.`);
           <label>Price (€) *<input type="number" min="0" step="0.01" value={form.price_eur} onChange={(e) => setForm({ ...form, price_eur: e.target.value })} required /></label>
           <label className="check-label"><input type="checkbox" checked={form.is_available} onChange={(e) => setForm({ ...form, is_available: e.target.checked })} /> Display on customer menu</label>
           <label className="full-field">Description<textarea rows="3" value={form.short_information} onChange={(e) => setForm({ ...form, short_information: e.target.value })} /></label>
+          
+
+<label className="full-field">
+  Food picture URL
+  <input
+    type="url"
+    value={form.image_url || ""}
+    onChange={(e) =>
+      setForm({ ...form, image_url: e.target.value })
+    }
+    placeholder="Paste the food picture URL here"
+  />
+  <input
+    type="file"
+    accept="image/*"
+    onChange={async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const data = new FormData();
+      data.append("image", file);
+
+      try {
+        const token = sessionStorage.getItem("desiDawatAdminToken");
+        const response = await fetch(
+          "http://localhost:3001/api/admin/upload",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: data,
+          }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || "Upload failed");
+        }
+
+        setForm({
+          ...form,
+          image_url: `http://localhost:3001${result.image_url}`,
+        });
+
+        alert("Food picture uploaded successfully.");
+      } catch (error) {
+        alert(error.message || "Could not upload picture.");
+      }
+    }}
+  />
+</label>
+
         </div>
         {error && <p className="form-error">{error}</p>}
         {message && <p className="form-success">{message}</p>}
@@ -663,6 +1100,7 @@ Delivery Charge saved for order #${order.order_id}.`);
       >
         <option value="one-page">One-page menu / Yhden sivun menu</option>
         <option value="two-page">Two-page flyer / Kahden sivun esite</option>
+        <option value="welcome-message">Welcome_message</option>
       </select>
     </label>
   </div>
@@ -672,6 +1110,33 @@ Delivery Charge saved for order #${order.order_id}.`);
   <p className="muted">
     Select the dishes to include in your flyer.
   </p>
+  <div className="flyer-selection-actions">
+  <button
+    type="button"
+    className="secondary-button"
+    onClick={() => {
+  const availableIds = items
+    .filter((item) => Boolean(Number(item.is_available)))
+    .map((item) => String(item.item_id));
+
+  if (flyerDay === "all-menu") {
+    setSelectedAllMenuItems(availableIds);
+  } else {
+    setSelectedFlyerItems(availableIds);
+  }
+}}
+  >
+    Select All / Valitse kaikki
+  </button>
+
+  <button
+    type="button"
+    className="secondary-button"
+    onClick={() => setSelectedFlyerItems([])}
+  >
+    Deselect All / Poista valinnat
+  </button>
+</div>
 
   {[...new Set(
     items
@@ -693,20 +1158,27 @@ Delivery Charge saved for order #${order.order_id}.`);
               type="checkbox"
               checked={
   flyerDay === "all-menu"
-    ? selectedAllMenuItems.includes(item.item_id)
-    : selectedFlyerItems.includes(item.item_id)
+   ? selectedAllMenuItems.map(String).includes(String(item.item_id))
+: selectedFlyerItems.map(String).includes(String(item.item_id))
 }
 onChange={(e) => {
+  const checked = e.target.checked;
   const setter =
     flyerDay === "all-menu"
       ? setSelectedAllMenuItems
       : setSelectedFlyerItems;
 
-  setter((previous) =>
-    e.target.checked
-      ? [...previous, item.item_id]
-      : previous.filter((id) => id !== item.item_id)
-  );
+  setter((previous) => {
+    const itemId = String(item.item_id);
+
+    if (checked) {
+      return previous.map(String).includes(itemId)
+        ? previous
+        : [...previous, item.item_id];
+    }
+
+    return previous.filter((id) => String(id) !== itemId);
+  });
 }}
             />
             {item.item_name} — €
@@ -848,6 +1320,309 @@ disabled={flyerGenerating}
   )}
 </section>
 
+
+<section className="panel inventory-admin">
+  <div className="inventory-print-header">
+  <img src="/images/LOGO.jpeg" alt="Desi Dawat Logo" />
+  <h1>DESI DAWAT</h1>
+  <p>Tuoretta intialaista kasvisruokaa</p>
+  <p>Fresh Indian Vegetarian Food</p>
+  <p>Pateniementie 59, 90800 Oulu</p>
+  <p>Puh. / Tel. +358 449803211</p>
+  <hr />
+  <h2>INVENTORY REPORT / VARASTORAPORTTI</h2>
+</div>
+
+
+  <div className="panel-heading">
+    <h2>Inventory / Varasto</h2>
+    <p className="muted">
+      Manage packing materials and food items.
+    </p>
+  </div>
+<div className="inventory-report-actions">
+  <button
+    type="button"
+    className="secondary-button"
+    onClick={() => window.print()}
+  >
+    Print Inventory Report / Tulosta varastoraportti
+  </button>
+</div>
+  {inventoryError && (
+    <p className="form-error">{inventoryError}</p>
+  )}
+
+  {inventoryMessage && (
+    <p className="form-success">{inventoryMessage}</p>
+  )}
+
+  <div className="field-row">
+    <label>
+      Inventory Category
+      <select
+        value={inventoryCategory}
+        onChange={(event) => {
+          const category = event.target.value;
+          setInventoryCategory(category);
+          setInventoryForm((previous) => ({
+            ...previous,
+            item_id: null,
+            item_category: category,
+            item_name: "",
+            item_name_hindi: "",
+            item_name_finnish: "",
+            rack_number: "",
+            item_size: "",
+            quantity: "",
+            unit: category === "packing_material" ? "pieces" : "kg",
+            availability: "available",
+            expiry_date: "",
+            expiry_note: "",
+            notes: "",
+          }));
+        }}
+      >
+        <option value="packing_material">Packing Materials</option>
+        <option value="food_item">Food Items</option>
+      </select>
+    </label>
+  </div>
+
+  <form onSubmit={handleSaveInventory}>
+    <div className="field-row">
+      <label>
+        Item Name *
+        <input
+          required
+          value={inventoryForm.item_name}
+          onChange={(event) =>
+            setInventoryForm((previous) => ({
+              ...previous,
+              item_name: event.target.value,
+            }))
+          }
+        />
+      </label>
+
+      <label>
+        Size / Specification
+        <input
+          value={inventoryForm.item_size}
+          placeholder="e.g. 500 ml box, 1 litre container"
+          onChange={(event) =>
+            setInventoryForm((previous) => ({
+              ...previous,
+              item_size: event.target.value,
+            }))
+          }
+        />
+      </label>
+    </div>
+
+    <div className="field-row">
+      <label>
+        Quantity
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={inventoryForm.quantity}
+          onChange={(event) =>
+            setInventoryForm((previous) => ({
+              ...previous,
+              quantity: event.target.value,
+            }))
+          }
+        />
+      </label>
+
+      <label>
+        Unit
+        <input
+          value={inventoryForm.unit}
+          placeholder="pieces, kg, litres"
+          onChange={(event) =>
+            setInventoryForm((previous) => ({
+              ...previous,
+              unit: event.target.value,
+            }))
+          }
+        />
+      </label>
+    </div>
+
+    {inventoryCategory === "food_item" && (
+      <div className="field-row">
+        <label>
+          Expiry Date
+          <input
+            type="date"
+            value={inventoryForm.expiry_date}
+            onChange={(event) =>
+              setInventoryForm((previous) => ({
+                ...previous,
+                expiry_date: event.target.value,
+              }))
+            }
+          />
+        </label>
+
+        <label>
+          Expiry Note
+          <input
+            value={inventoryForm.expiry_note}
+            placeholder="e.g. Use first"
+            onChange={(event) =>
+              setInventoryForm((previous) => ({
+                ...previous,
+                expiry_note: event.target.value,
+              }))
+            }
+          />
+        </label>
+      </div>
+    )}
+
+    <div className="field-row">
+      <label>
+        Rack Number
+        <input
+          value={inventoryForm.rack_number}
+          onChange={(event) =>
+            setInventoryForm((previous) => ({
+              ...previous,
+              rack_number: event.target.value,
+            }))
+          }
+        />
+      </label>
+
+      <label>
+        Availability
+        <select
+          value={inventoryForm.availability}
+          onChange={(event) =>
+            setInventoryForm((previous) => ({
+              ...previous,
+              availability: event.target.value,
+            }))
+          }
+        >
+          <option value="available">Available</option>
+          <option value="low_stock">Low Stock</option>
+          <option value="out_of_stock">Out of Stock</option>
+          <option value="not_confirmed">Not Confirmed</option>
+        </select>
+      </label>
+    </div>
+
+    <label>
+      Notes
+      <textarea
+        value={inventoryForm.notes}
+        onChange={(event) =>
+          setInventoryForm((previous) => ({
+            ...previous,
+            notes: event.target.value,
+          }))
+        }
+      />
+    </label>
+
+    <div className="form-actions">
+      <button className="button button-primary" type="submit">
+        {inventoryForm.item_id ? "Update Item" : "Add Item"}
+      </button>
+
+      <button
+        className="button button-outline"
+        type="button"
+        onClick={resetInventoryForm}
+      >
+        Clear Form
+      </button>
+    </div>
+  </form>
+
+  <hr />
+
+  <h3>Current Inventory</h3>
+
+  {inventoryLoading && <p>Loading inventory...</p>}
+
+  {!inventoryLoading && (
+    <div className="admin-table-wrap">
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Size</th>
+            <th>Quantity</th>
+            <th>Expiry</th>
+            <th>Availability</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {inventory
+            .filter(
+              (item) => item.item_category === inventoryCategory
+            )
+            .map((item) => (
+              <tr key={item.item_id}>
+                <td>{item.item_name}</td>
+                <td>{item.item_size || "—"}</td>
+                <td>
+  {item.quantity == null || item.quantity === ""
+    ? "—"
+    : Number(item.quantity).toLocaleString("en-US", {
+        maximumFractionDigits: 0,
+      })}{" "}
+  {item.unit}
+</td>
+                <td>
+  {item.expiry_date
+    ? (() => {
+        const date = String(item.expiry_date).slice(0, 10);
+        const [year, month, day] = date.split("-");
+        return `${day}-${month}-${year}`;
+      })()
+    : "—"}
+</td>
+                <td>{item.availability.replaceAll("_", " ")}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="button button-outline"
+                    onClick={() => handleEditInventory(item)}
+                  >
+                    Edit
+                  </button>
+                  {" "}
+                  <button
+                    type="button"
+                    className="button button-outline"
+                    onClick={() => handleDeleteInventory(item)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+
+          {inventory.filter(
+            (item) => item.item_category === inventoryCategory
+          ).length === 0 && (
+            <tr>
+              <td colSpan="6">No inventory items in this category yet.</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )}
+</section>
 
 <div className="admin-list-heading">
   <h2>
