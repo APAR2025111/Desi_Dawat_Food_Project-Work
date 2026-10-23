@@ -15,10 +15,6 @@ export default function OrderConfirmation() {
   }
 
   const items = confirmation?.items || [];
-  const paymentMethod = confirmation?.paymentMethod || "pay_on_delivery";
-
-  const isDelivery = confirmation?.orderType === "delivery";
-  const isPayOnDelivery = paymentMethod === "pay_on_delivery";
 
   return (
     <main className="order-confirmation-page">
@@ -30,15 +26,29 @@ export default function OrderConfirmation() {
         />
 
         <div className="confirmation-success">🎉 😊 ❤️</div>
+        {/* Delivery review: make a manually quoted delivery charge clear to the customer. */}
+        <h1>{confirmation?.deliveryChargePendingManualReview ? "Your order is saved; delivery fee pending" : "Your order has been accepted!"}</h1>
+        <h2>{confirmation?.deliveryChargePendingManualReview ? "Tilaus tallennettu; toimitusmaksu vahvistetaan" : "Tilauksesi on hyväksytty!"}</h2>
 
-        <h1>Your order has been accepted!</h1>
-        <h2>Tilauksesi on hyväksytty!</h2>
-
+        {confirmation?.deliveryChargePendingManualReview && (
+          <p className="notice">We saved your order. The restaurant will verify the delivery address and confirm the delivery charge and final total before accepting it.<br /><em>Tallensimme tilauksesi. Ravintola tarkistaa toimitusosoitteen ja vahvistaa toimitusmaksun sekä loppusumman ennen tilauksen hyväksymistä.</em></p>
+        )}
         {orderId && (
           <p className="confirmation-order-number">
             Order number: {orderId}
           </p>
         )}
+
+        {/* Confirmation update: reassure customers that we will share order progress. */}
+        <p className="confirmation-update">
+          Pidämme sinut ajan tasalla tilauksesi etenemisestä.
+          <br />
+          <em>We will keep you updated about your order.</em>
+          <br />
+          Kuitti toimitetaan sinulle pian.
+          <br />
+          <em>We will share your receipt with you soon.</em>
+        </p>
 
         <h3>Your order consists of:</h3>
         <p><em>Tilauksesi sisältää:</em></p>
@@ -61,43 +71,11 @@ export default function OrderConfirmation() {
           </p>
         )}
 
+        {/* Confirmation payment: customers may use any method listed on their receipt. */}
         <div className="confirmation-message">
-          {isPayOnDelivery ? (
-            <>
-              <h3>Pay on Delivery / Maksu toimituksen yhteydessä</h3>
-              <p>
-                Please pay when your order is delivered or collected.
-                Thank you for choosing us! 😊
-              </p>
-              <p>
-                <em>
-                  Ole hyvä ja maksa tilauksen toimituksen tai noudon
-                  yhteydessä. Kiitos, että valitsit meidät! 😊
-                </em>
-              </p>
-            </>
-          ) : (
-            <>
-              <h3>
-                {paymentMethod === "iban_transfer"
-                  ? "Bank Transfer / Tilisiirto"
-                  : "Mobile Scan Pay / Mobiilimaksu"}
-              </h3>
-              <p>
-                Please show your payment confirmation during delivery or
-                pickup. No worries—your order has been accepted! We will
-                update you about its status and deliver it soon. 😊
-              </p>
-              <p>
-                <em>
-                  Ole hyvä ja näytä maksuvahvistus toimituksen tai noudon
-                  yhteydessä. Ei huolta – tilauksesi on hyväksytty!
-                  Ilmoitamme sinulle tilauksesi tilanteesta ja toimitamme
-                  sen pian. 😊
-                </em>
-              </p>
-            </>
-          )}
+          <h3>Payment / Maksaminen</h3>
+          <p>You may pay using any of the payment methods listed on your receipt.</p>
+          <p><em>Voit maksaa millä tahansa kuitissa mainituista maksutavoista.</em></p>
         </div>
 
         <p className="confirmation-thanks">

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { getMenu, getOpeningHours } from "../api.js";
+import { getMenu, getOpeningHours, getDeliveryQuote } from "../api.js";
 const euro = new Intl.NumberFormat("fi-FI", {
   style: "currency",
   currency: "EUR",
@@ -53,6 +53,12 @@ export default function MenuPage() {
   const [error, setError] = useState("");
   const [isReviewingOrder, setIsReviewingOrder] = useState(false);
   const [isPaymentStep, setIsPaymentStep] = useState(false);
+  // Delivery estimate state for the customer order-review screen.
+  const [deliveryQuote, setDeliveryQuote] = useState(null);
+  // Track which address and subtotal produced the current quote so checkout can reuse it.
+  const [deliveryQuoteKey, setDeliveryQuoteKey] = useState("");
+  const [deliveryQuoteError, setDeliveryQuoteError] = useState("");
+  const [deliveryQuoteLoading, setDeliveryQuoteLoading] = useState(false);
   const [openingHours, setOpeningHours] = useState([]);
   const [hoursLoading, setHoursLoading] = useState(true);
   // Load menu from the backend.
@@ -151,6 +157,88 @@ useEffect(() => {
       total + Number(item.price_eur) * item.quantity,
     0
   );
+  // Debounce address-based estimates while the customer types, and ignore stale responses.
+  useEffect(() => {
+    if (!checkoutOpen || orderType !== "delivery" || deliveryAddress.trim().length < 6) {
+      setDeliveryQuote(null);
+      setDeliveryQuoteKey("");
+      setDeliveryQuoteError("");
+      setDeliveryQuoteLoading(false);
+      return undefined;
+    }
+
+    let isCurrentRequest = true;
+    const quoteKey = JSON.stringify([deliveryAddress.trim(), Number(cartTotal.toFixed(2))]);
+    setDeliveryQuote(null);
+    setDeliveryQuoteKey("");
+    setDeliveryQuoteError("");
+    setDeliveryQuoteLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const quote = await getDeliveryQuote(deliveryAddress.trim(), cartTotal);
+        if (isCurrentRequest) {
+          setDeliveryQuote(quote);
+          setDeliveryQuoteKey(quoteKey);
+        }
+      } catch (quoteError) {
+        if (isCurrentRequest) {
+          setDeliveryQuoteError(quoteError.message || "Could not calculate the delivery charge.");
+        }
+      } finally {
+        if (isCurrentRequest) setDeliveryQuoteLoading(false);
+      }
+    }, 650);
+
+    return () => {
+      isCurrentRequest = false;
+      window.clearTimeout(timer);
+    };
+  }, [checkoutOpen, orderType, deliveryAddress, cartTotal]);
+  // Shared pricing summary appears on review and payment steps so the estimate stays visible.
+  const orderPriceSummary = (
+    <div className="checkout-price-summary" aria-live="polite">
+      <div className="checkout-price-row">
+        <span>Food subtotal</span>
+        <strong>{euro.format(cartTotal)}</strong>
+      </div>
+      {orderType === "delivery" ? deliveryQuote ? (
+        <>
+          <div className="checkout-price-row">
+            <span>Estimated delivery charge</span>
+            <strong>{euro.format(deliveryQuote.delivery_charge)}</strong>
+          </div>
+          <div className="checkout-price-row checkout-price-total">
+            <span>Estimated total</span>
+            <strong>{euro.format(deliveryQuote.total_amount)}</strong>
+          </div>
+          <small>{deliveryQuote.message} Final charge is confirmed when the order is accepted.</small>
+        </>
+      ) : deliveryQuoteLoading ? (
+        <p className="cart-note">Calculating estimated delivery charge…</p>
+      ) : deliveryQuoteError ? (
+        <>
+          <div className="checkout-price-row">
+            <span>Delivery charge</span>
+            <strong>Pending confirmation</strong>
+          </div>
+          <p className="cart-note">{deliveryQuoteError} You may continue; the restaurant will verify the address and confirm the delivery charge.</p>
+        </>
+      ) : (
+        <p className="cart-note">Enter a complete delivery address to calculate the estimated charge automatically.</p>
+      ) : (
+        <>
+          <div className="checkout-price-row">
+            <span>Delivery charge</span>
+            <strong>{euro.format(0)}</strong>
+          </div>
+          <div className="checkout-price-row checkout-price-total">
+            <span>Estimated total</span>
+            <strong>{euro.format(cartTotal)}</strong>
+          </div>
+        </>
+      )}
+    </div>
+  );
   // Scroll to the full cart.
   function scrollToCart() {
     document.getElementById("cart")?.scrollIntoView({
@@ -172,8 +260,7 @@ useEffect(() => {
         block: "start",
       });
     }, 0);
-  }
-  // Submit the checkout form to the backend.
+  }  // Submit the checkout form to the backend.
 function handleCheckoutSubmit(event) {
   event.preventDefault();
   const name = customerName.trim();
@@ -198,8 +285,38 @@ function handleCheckoutSubmit(event) {
     return;
   }
   setCheckoutError("");
+  void prepareOrderReview();
+}
+// Reuse the current address/subtotal quote; the backend recalculates again when the order is submitted.
+async function prepareOrderReview() {
+  setCheckoutError("");
+  if (cart.length === 0) return setCheckoutError("Your cart is empty.");
+  if (!customerName.trim() || !customerPhone.trim()) return setCheckoutError("Please enter your name and phone number.");
+  if (orderType === "delivery" && !deliveryAddress.trim()) return setCheckoutError("Please enter your delivery address.");
+
+  const currentQuoteKey = JSON.stringify([deliveryAddress.trim(), Number(cartTotal.toFixed(2))]);
+  const hasCurrentQuote = deliveryQuote && deliveryQuoteKey === currentQuoteKey;
+  if (orderType === "delivery" && !hasCurrentQuote) {
+    setDeliveryQuote(null);
+    setDeliveryQuoteKey("");
+    setDeliveryQuoteError("");
+    setDeliveryQuoteLoading(true);
+    try {
+      const quote = await getDeliveryQuote(deliveryAddress.trim(), cartTotal);
+      setDeliveryQuote(quote);
+      setDeliveryQuoteKey(currentQuoteKey);
+    } catch (quoteError) {
+      if (quoteError.code === "DELIVERY_OUT_OF_AREA") {
+        setCheckoutError(quoteError.message);
+        return;
+      }
+      setDeliveryQuoteError(quoteError.message || "Could not calculate the delivery charge.");
+    } finally {
+      setDeliveryQuoteLoading(false);
+    }
+  }
   setIsPaymentStep(false);
-        setIsReviewingOrder(true);
+  setIsReviewingOrder(true);
 }
   return (
     <>
@@ -467,8 +584,8 @@ function handleCheckoutSubmit(event) {
           })}
         </div>
       </section>
-      {/* Shopping cart. */}
-      <section className="cart-section" id="cart">
+      {/* Keep cart content in the DOM, but hide it on review/payment steps to avoid repeating order details. */}
+      <section className="cart-section" id="cart" hidden={isReviewingOrder || isPaymentStep}>
         <div className="section-heading">
           <div>
             <span className="eyebrow">YOUR ORDER</span>
@@ -524,7 +641,8 @@ function handleCheckoutSubmit(event) {
             <p className="cart-note">
               Delivery charges, if applicable, are not included yet.
             </p>
-            <button
+
+                      <button
               type="button"
               className="add-to-cart-btn"
               onClick={openCheckout}
@@ -536,13 +654,14 @@ function handleCheckoutSubmit(event) {
                 {checkoutError}
               </p>
             )}
-          </>
+</>
         )}
       </section>
       {/* Checkout form. */}
       {checkoutOpen && (
-        <section className="cart-section checkout-section" id="checkout">
-          <div className="section-heading">
+      <section className="cart-section checkout-section" id="checkout">
+          {/* Hide the checkout heading on the review/payment steps while keeping checkout available. */}
+          <div className="section-heading" hidden={isReviewingOrder || isPaymentStep}>
             <div>
               <span className="eyebrow">ALMOST THERE</span>
               <h2>Checkout</h2>
@@ -609,7 +728,7 @@ function handleCheckoutSubmit(event) {
                   onChange={(event) =>
                     setDeliveryAddress(event.target.value)
                   }
-                  placeholder="Street address, postal code and city"
+                  placeholder="Street address, postal code and city (Oulu)"
                   rows={3}
                   required
                 />
@@ -627,41 +746,14 @@ function handleCheckoutSubmit(event) {
                 rows={3}
               />
             </div>
-           <div className="cart-total">
-              <strong>Food subtotal</strong>
-              <strong>{euro.format(cartTotal)}</strong>
-            </div>
-            <p className="cart-note">
-              Delivery fees and payment will be confirmed before the order
-              is submitted.
-            </p>
-            {checkoutError && (
-              <p className="notice error" role="alert">
-                {checkoutError}
-              </p>
-            )}
+            {orderPriceSummary}
 <button
   type="button"
   className="add-to-cart-btn"
-  onClick={() => {
-    setCheckoutError("");
-    if (cart.length === 0) {
-      setCheckoutError("Your cart is empty.");
-      return;
-    }
-    if (!customerName.trim() || !customerPhone.trim()) {
-      setCheckoutError("Please enter your name and phone number.");
-      return;
-    }
-    if (orderType === "delivery" && !deliveryAddress.trim()) {
-      setCheckoutError("Please enter your delivery address.");
-      return;
-    }
-    setIsPaymentStep(false);
-    setIsReviewingOrder(true);
-  }}
+  onClick={prepareOrderReview}
+  disabled={deliveryQuoteLoading}
 >
-  Review Order Details
+  {deliveryQuoteLoading ? "Calculating delivery charge…" : "Review Order Details"}
 </button>
             <button
               type="button"
@@ -693,6 +785,7 @@ function handleCheckoutSubmit(event) {
         {item.item_name} × {item.quantity}
       </p>
     ))}
+    {orderPriceSummary}
 <button
       type="button"
       className="add-to-cart-btn"
@@ -718,7 +811,7 @@ function handleCheckoutSubmit(event) {
 )}
         {isReviewingOrder && isPaymentStep && (
           <div className="checkout-review">
-            <h3>Choose Payment Method / Valitse maksutapa</h3>
+            <h3>Payment / Maksaminen</h3>
             <p><strong>Customer:</strong> {customerName}</p>
             <p><strong>Phone:</strong> {customerPhone}</p>
             <p><strong>Order type:</strong> {orderType === "delivery" ? "Home delivery" : "Takeaway / pickup"}</p>
@@ -729,63 +822,14 @@ function handleCheckoutSubmit(event) {
                 {index + 1}. {item.item_name} × {item.quantity}
               </p>
             ))}
-            <div className="cart-total">
-              <strong>Food subtotal / Ruoan välisummaa</strong>
-              <strong>{euro.format(cartTotal)}</strong>
+            {orderPriceSummary}
+            {/* Payment choices callout: highlight that customers can choose any method on the receipt. */}
+            <div className="checkout-field checkout-payment-note">
+              <p>You may pay using any of the payment methods listed on your receipt.</p>
+              <p><em>Voit maksaa millä tahansa kuitissa mainituista maksutavoista.</em></p>
+              <p>Confirm your order to complete checkout and receive your order confirmation.</p>
+              <p><em>Vahvista tilaus viimeistelläksesi tilauksen ja saadaksesi tilausvahvistuksen.</em></p>
             </div>
-            <div className="checkout-field">
-              <label htmlFor="payment-method">Payment method / Maksutapa</label>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "20px", flexWrap: "wrap" }}>
-                <select
-                  id="payment-method"
-                  value={paymentMethod}
-                  onChange={(event) => setPaymentMethod(event.target.value)}
-                  required
-                >
-                  <option value="mobile_scan_pay">Mobile Scan Pay / Mobiilimaksu</option>
-                  <option value="iban_transfer">Bank Transfer (IBAN) / Tilisiirto</option>
-                  <option value="pay_on_delivery">Pay on Delivery / Maksu toimituksen yhteydessä</option>
-                </select>
-                {paymentMethod === "mobile_scan_pay" && (
-                  <div style={{ textAlign: "center" }}>
-                    <img
-                      src="/images/MobilePay-QR.png.jpeg"
-                      alt="Desi Dawat mobile payment QR code"
-                      style={{ width: "240px", maxWidth: "100%", height: "auto", display: "block", borderRadius: "8px" }}
-                    />
-                    <p>Scan to pay / Skannaa maksaaksesi</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            {paymentMethod === "iban_transfer" && (
-              <div className="checkout-field">
-                <h3>Please pay your order amount to the following bank account:</h3>
-                <p><em>Ole hyvä ja maksa tilauksesi summa seuraavalle pankkitilille:</em></p>
-                <p><strong>Account Holder / Tilinhaltija:</strong> Ruchi Srivastava</p>
-                <p><strong>Bank / Pankki:</strong> OP Bank, Finland</p>
-                <p><strong>IBAN:</strong> FI6157445020094271</p>
-                <p><strong>BIC/SWIFT:</strong> OKOYFIHH</p>
-                <hr />
-                <p><strong>After you place your order successfully, it will be accepted. 😊</strong></p>
-                <p><em>Tilauksesi hyväksytään, kun olet lähettänyt sen onnistuneesti. 😊</em></p>
-                <p>No worries — bank transfers may take some time to reach us and be confirmed. Please show payment confirmation during delivery or pickup. We will update you about your order status and deliver it soon. 😊</p>
-                <p>Ei huolta — pankkisiirron saapuminen ja maksun vahvistaminen voivat kestää jonkin aikaa. Näytä maksuvahvistus toimituksen tai noudon yhteydessä. Ilmoitamme sinulle tilauksesi tilanteesta ja toimitamme sen pian. 😊</p>
-                <p><strong>Thank you for choosing Desi Dawat!</strong><br /><em>Kiitos, että valitsit Desi Dawatin!</em></p>
-              </div>
-            )}
-            {paymentMethod === "mobile_scan_pay" && (
-              <div className="checkout-field">
-                <p>Please show payment confirmation during delivery or pickup. We will update you about your order status and deliver it soon. 😊</p>
-                <p><em>Näytä maksuvahvistus toimituksen tai noudon yhteydessä. Ilmoitamme sinulle tilauksesi tilanteesta ja toimitamme sen pian. 😊</em></p>
-              </div>
-            )}
-            {paymentMethod === "pay_on_delivery" && (
-              <div className="checkout-field">
-                <p>You can pay when your order is delivered or collected. Thank you for choosing Desi Dawat! 😊</p>
-                <p><em>Voit maksaa, kun tilauksesi toimitetaan tai noudat sen. Kiitos, että valitsit Desi Dawatin! 😊</em></p>
-              </div>
-            )}
             {checkoutError && <p className="notice error" role="alert">{checkoutError}</p>}
             <button
               type="button"
@@ -810,8 +854,8 @@ function handleCheckoutSubmit(event) {
                   if (!response.ok) throw new Error(data.message || "Could not save your order.");
                   const confirmation = {
                     orderId: data.order_id,
-                    paymentMethod,
                     orderType,
+                    deliveryChargePendingManualReview: Boolean(data.delivery_charge_pending_manual_review),
                     items: cart.map((item) => ({ name: item.item_name, quantity: item.quantity })),
                   };
                   sessionStorage.setItem("desiDawatOrderConfirmation", JSON.stringify(confirmation));

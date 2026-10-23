@@ -1,5 +1,9 @@
 import React from "react";
 import { useCallback, useEffect, useState } from "react";
+// Admin console navigation: send sign-out and rejected sessions back to the public sign-in page.
+import { useNavigate } from "react-router-dom";
+// Inventory size: normalize older size labels and restrict newly saved values to gm/ml.
+import { isValidInventorySize, normalizeInventorySize } from "../utils/inventorySize.js";
 
 import {
   deleteMenuItem,
@@ -25,6 +29,8 @@ const blank = {
 };
 
 export default function AdminPage() {
+  // Admin console navigation: keep the protected console route aligned with session state.
+  const navigate = useNavigate();
   const [token, setToken] = useState(() => sessionStorage.getItem("desiDawatAdminToken") || "");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -83,17 +89,31 @@ const [selectedFlyerItems, setSelectedFlyerItems] = useState([]);
       setError("");
     } catch (err) {
       setError(err.message);
+      // Admin session expiry: return to sign-in if the console's protected menu request rejects the token.
       if (err.message.toLowerCase().includes("session") || err.message.toLowerCase().includes("sign in")) {
         setToken("");
         sessionStorage.removeItem("desiDawatAdminToken");
+        navigate("/admin/login", { replace: true, state: { from: "/admin/console" } });
       }
     }
-  }, [token]);
+  }, [token, navigate]);
   
 const handleGenerateFlyer = () => {
   setFlyerGenerating(true);
 
   try {
+    // Welcome flyer hours: build the printable schedule from admin-managed server opening hours.
+    const escapeFlyerText = (value) => String(value ?? "").replace(/[&<>\"']/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
+    })[character]);
+    const welcomeHoursMarkup = openingHours.map((day) => {
+      const periods = [];
+      if (!day.morning_closed && day.morning_open && day.morning_close) periods.push(`${day.morning_open}–${day.morning_close}`);
+      if (!day.evening_closed && day.evening_open && day.evening_close) periods.push(`${day.evening_open}–${day.evening_close}`);
+      const schedule = periods.length ? periods.join(", ") : "Suljettu / Closed";
+      return `<strong>${escapeFlyerText(day.day_fi)} / ${escapeFlyerText(day.day_en)}: ${escapeFlyerText(schedule)}</strong><br />`;
+    }).join("") || "<strong>Aukioloajat eivät saatavilla / Opening hours unavailable</strong>";
+
     const availableItems = items.filter((item) => {
   const isAvailable = Boolean(Number(item.is_available));
 
@@ -168,48 +188,47 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
               <p>Intialainen kasvisruoka / Indian Vegetarian Food</p>
               <p>Pateniementie 59, 90800 Oulu, Finland</p>
             </header>
-
-            <h2>🇫🇮 SUOMEKSI</h2>
+<p class="welcome-opening-hours">
+  🕒 <strong>AU KIOLOAJAT / OPENING HOURS</strong>
+</p>
+<p class="welcome-opening-hours">${welcomeHoursMarkup}</p>
+            
             <p>Tarjoamme tuoretta ja aitoa intialaista kasvisruokaa: herkullisia aterioita, leipiä, riisiä ja välipaloja.</p>
+             <p>We offer fresh, authentic Indian vegetarian food, including delicious meals, 
+             breads, rice and snacks.</p>
             <p>🚗 Kotiinkuljetus ja nouto saatavilla!</p>
-            <p>❤️ Lämpimästi tervetuloa!</p>
-
-            <hr />
-
-            <h2>🇬🇧 ENGLISH</h2>
-            <p>We offer fresh, authentic Indian vegetarian food, including delicious meals, breads, rice and snacks.</p>
+                  
+           
             <p>🚗 Home delivery and pickup available!</p>
-            <p>❤️ A warm welcome to everyone!</p>
+           
+
 
             <hr />
 
-            <h2>📋 MENU / RUOKALISTA &amp; ORDERS / TILAUKSET</h2>
+            <h2>📋 RUOKALISTA-TILAUKSET/ MENU-ORDERS </h2>
             <p>
               <a href="https://drive.google.com/file/d/1hFz08DQoDrXuKx1zyj_nTuQZHui1b3TQ/view?usp=sharing" target="_blank" rel="noopener noreferrer">
-                Open Menu / Avaa ruokalista
+                Avaa ruokalista/View Menu 
               </a>
             </p>
 
-            <h2>📲 HOW TO ORDER / NÄIN TILAAT</h2>
+            <h2>📲  NÄIN TILAAT/HOW TO ORDER</h2>
             <p>🇫🇮 Lähetä WhatsApp-viesti ja ilmoita tuotenumero, määrä sekä toivottu nouto- tai toimitusaika.</p>
             <p>🇬🇧 Send a WhatsApp message with the item number, quantity, and preferred pickup or delivery time.</p>
             <p><a href="https://wa.me/358449803211">WhatsApp: +358 44 980 3211</a></p>
 
             <hr />
 
-            <h2>🇫🇮 AUKIOLOAJAT / 🇬🇧 OPENING HOURS</h2>
-            <p>Ma–To / Mon–Thu: 19:00–22:00</p>
-            <p>Pe / Fri: 19:00–23:00</p>
-            <p>La / Sat: 11:00–14:00, 18:00–22:00</p>
-            <p>Su / Sun: 11:00–14:00, 18:00–21:00</p>
+            
 
             <hr />
 
-            <h2>📞 QUERIES &amp; ASSISTANCE / KYSYMYKSET JA APU</h2>
+            <h2>📞KYSYMYKSET JA APU/QUERIES &amp; ASSISTANCE </h2>
             <p><a href="tel:+358413279444">+358 41 327 9444</a></p>
 
-            <p>🙏 Thank you for choosing Desi Dawat! ❤️</p>
+            
             <p>🙏 Kiitos, että valitset Desi Dawatin! ❤️</p>
+            <p>🙏 Thank you for choosing Desi Dawat! ❤️</p>
           </body>
         </html>
       `);
@@ -304,19 +323,37 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
               .page { min-height: 95vh; }
             }
 
-            .flyer-opening-hours {
-  margin: 8px 0 12px;
-  padding: 8px;
-  border-top: 2px solid #c99a36;
-  border-bottom: 1px solid #c99a36;
-  font-size: 10px;
+            
+.flyer-opening-hours {
+  margin: 12px 0 16px;
+  padding: 14px;
+  background: #fff0c2;
+  border: 3px solid #c79b35;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #791d2a;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12);
 }
 
+
+
+/* Daily flyer schedule styling: center the selected day and emphasize its times. */
 .flyer-hours-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: start;
+  text-align: center;
 }
+
+.flyer-hours-day {
+  min-width: 0;
+  padding: 4px;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
 
 .flyer-hours-day {
   min-width: 0;
@@ -328,6 +365,17 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
 .flyer-hours-day small {
   display: block;
   margin-bottom: 3px;
+}
+
+.flyer-hours-day .hours-time {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #fff;
+  color: #075e36;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .flyer-hours-day p {
@@ -346,6 +394,8 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
               <img src="/images/LOGO.jpeg" alt="Desi Dawat logo" />
               <h1>Desi Dawat</h1>
               <p>Intialainen kasvisruoka / Indian Vegetarian Food</p>
+              <!-- Flyer address placement: keep the restaurant address on the first menu page. -->
+              <p>📍 Pateniementie 59, 90800 Oulu, Finland</p>
               <h2>${flyerDay === "all-menu"
   ? "RUOKALISTA / MENU CARD"
   : ({
@@ -367,12 +417,15 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
   ];
 
   const formatTime = (time) => time ? String(time).slice(0, 5) : "";
+  // Daily menu flyers show only the selected day's schedule; the full menu retains the weekly schedule.
+  const selectedHoursKey = ["mon", "tue", "wed", "thu"].includes(flyerDay) ? "mon_thu" : flyerDay;
+  const visibleDays = flyerDay === "all-menu" ? days : days.filter(({ key }) => key === selectedHoursKey);
 
   return `
     <div class="flyer-opening-hours">
       <strong>AUKIOLOAJAT / OPENING HOURS</strong>
       <div class="flyer-hours-grid">
-        ${days.map(({ key, fi, en }) => {
+        ${visibleDays.map(({ key, fi, en }) => {
           const day = openingHours.find((d) => d.day_key === key);
           if (!day) return "";
 
@@ -388,8 +441,8 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
             <div class="flyer-hours-day">
               <strong>${fi}</strong>
               <small>${en}</small>
-              <p>Aamu / Morning: ${morning}</p>
-              <p>Ilta / Evening: ${evening}</p>
+              <p>Aamu / Morning: <span class="hours-time">${morning}</span></p>
+              <p>Ilta / Evening: <span class="hours-time">${evening}</span></p>
             </div>
           `;
         }).join("")}
@@ -409,7 +462,6 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
                     <h1>TILAUSOHJEET</h1>
                     <p>HOW TO ORDER</p>
                   </header>
-                  <p>📍 Pateniementie 59, 90800 Oulu, Finland</p>
 <br />
                   <h2>📲 Näin tilaat / How to Order</h2>
                   <p>WhatsApp: +358 449803211</p>
@@ -564,71 +616,8 @@ console.log("Dish name HTML:", name.innerHTML);
             });
           </script>
 
-<section class="page closing-page" style="page-break-before: always; break-before: page;">
-  <header>
-    <img src="/images/LOGO.jpeg" alt="Desi Dawat logo" />
-    <h1>DESI DAWAT – OULU</h1>
-    <p>Intialainen kasvisruoka / Indian Vegetarian Food</p>
-    <p>Pateniementie 59, 90800 Oulu, Finland</p>
-  </header>
-
-  <h2>🇫🇮 SUOMEKSI</h2>
-  <p>Tarjoamme tuoretta ja aitoa intialaista kasvisruokaa: herkullisia aterioita, leipiä, riisiä ja välipaloja.</p>
-  <p>🚗 Kotiinkuljetus ja nouto saatavilla!</p>
-  <p>❤️ Lämpimästi tervetuloa!</p>
-
-  <hr />
-
-  <h2>🇬🇧 ENGLISH</h2>
-  <p>We offer fresh, authentic Indian vegetarian food, including delicious meals, breads, rice and snacks.</p>
-  <p>🚗 Home delivery and pickup available!</p>
-  <p>❤️ A warm welcome to everyone!</p>
-
-  <hr />
-
-  <h2>📋 MENU / RUOKALISTA &amp; ORDERS / TILAUKSET</h2>
-  <p>
-    <a href="https://drive.google.com/file/d/1hFz08DQoDrXuKx1zyj_nTuQZHui1b3TQ/view?usp=sharing">
-      Open Menu / Avaa ruokalista
-    </a>
-  </p>
-
-  <h2>📲 HOW TO ORDER / NÄIN TILAAT</h2>
-  <p>🇫🇮 Lähetä WhatsApp-viesti ja ilmoita tuotenumero, määrä sekä toivottu nouto- tai toimitusaika.</p>
-  <p>🇬🇧 Send a WhatsApp message with the item number, quantity, and preferred pickup or delivery time.</p>
-  <p>
-    <a href="https://wa.me/358449803211">WhatsApp: +358 44 980 3211</a>
-  </p>
-
-  <hr />
-
-  <h2>🇫🇮 AUKIOLOAJAT / 🇬🇧 OPENING HOURS</h2>
-  <p>Ma–To / Mon–Thu: 19:00–22:00</p>
-  <p>Pe / Fri: 19:00–23:00</p>
-  <p>La / Sat: 11:00–14:00, 18:00–22:00</p>
-  <p>Su / Sun: 11:00–14:00, 18:00–21:00</p>
-
-  <hr />
-
-  <h2>📞 QUERIES &amp; ASSISTANCE / KYSYMYKSET JA APU</h2>
-  <p><a href="tel:+358413279444">+358 41 327 9444</a></p>
-
-  <p>🙏 Thank you for choosing Desi Dawat! ❤️</p>
-  <p>🙏 Kiitos, että valitset Desi Dawatin! ❤️</p>
-  <div class="whatsapp-qr">
-  <h3>For More Updates, Join Our WhatsApp Group!</h3>
-  <p>Lisää päivityksiä varten liity WhatsApp-ryhmäämme!</p>
-  <img
-  src="/images/WhatsApp_Group_QR.jpeg"
-  alt="Desi Dawat WhatsApp group QR code"
-  style="width: 150px; height: 150px; object-fit: contain;"
-/>
-  <p>Scan this QR code with WhatsApp to join our group.</p>
-</div>
-</section>
-
-
-        </body>
+<!-- Daily menu flyer intentionally ends after its menu and how-to-order pages; omit the old trailing welcome pages. -->
+</body>
       </html>
     `);
 
@@ -742,6 +731,11 @@ async function handleSaveInventory(event) {
   setMessage("");
 
   try {
+  // Inventory size validation: reject container/count labels in Size; keep those in Unit.
+  if (!isValidInventorySize(inventoryForm.item_size)) {
+    setInventoryError("Size must be a number followed by gm or ml only (for example, 230 gm or 500 ml). Put can/pieces in Unit.");
+    return;
+  }
   const quantity = Number(inventoryForm.quantity);
 
   if (
@@ -754,6 +748,7 @@ async function handleSaveInventory(event) {
   }
     const payload = {
       ...inventoryForm,
+      item_size: normalizeInventorySize(inventoryForm.item_size),
       item_category: inventoryCategory,
     };
 
@@ -775,6 +770,7 @@ async function handleSaveInventory(event) {
 function handleEditInventory(item) {
   setInventoryForm({
     ...item,
+    item_size: normalizeInventorySize(item.item_size),
     quantity: item.quantity ?? "",
     expiry_date: item.expiry_date
       ? String(item.expiry_date).slice(0, 10)
@@ -918,9 +914,11 @@ Delivery Charge saved for order #${order.order_id}.`);
     } catch (err) { setError(err.message); }
   }
 
+  // Admin sign-out: clear the session and leave the protected route immediately.
   function logout() {
     sessionStorage.removeItem("desiDawatAdminToken");
     setToken(""); setItems([]); resetForm(); setMessage("Signed out.");
+    navigate("/admin/login", { replace: true });
   }
 
   
@@ -1329,6 +1327,7 @@ disabled={flyerGenerating}
   <p>Fresh Indian Vegetarian Food</p>
   <p>Pateniementie 59, 90800 Oulu</p>
   <p>Puh. / Tel. +358 449803211</p>
+
   <hr />
   <h2>INVENTORY REPORT / VARASTORAPORTTI</h2>
 </div>
@@ -1406,10 +1405,12 @@ disabled={flyerGenerating}
       </label>
 
       <label>
-        Size / Specification
+        Size (gm or ml only)
         <input
           value={inventoryForm.item_size}
-          placeholder="e.g. 500 ml box, 1 litre container"
+          pattern="[0-9]+([.][0-9]+)?[ ]*(gm|ml)"
+          title="Enter a measurement such as 230 gm or 500 ml. Put can or pieces in Unit."
+          placeholder="e.g. 230 gm or 500 ml"
           onChange={(event) =>
             setInventoryForm((previous) => ({
               ...previous,
@@ -1417,6 +1418,7 @@ disabled={flyerGenerating}
             }))
           }
         />
+        <small className="muted">Use gm or ml here. Record cans, pieces, packs, etc. in the Unit field.</small>
       </label>
     </div>
 
@@ -1572,7 +1574,7 @@ disabled={flyerGenerating}
             .map((item) => (
               <tr key={item.item_id}>
                 <td>{item.item_name}</td>
-                <td>{item.item_size || "—"}</td>
+                <td>{normalizeInventorySize(item.item_size) || "—"}</td>
                 <td>
   {item.quantity == null || item.quantity === ""
     ? "—"
@@ -1728,14 +1730,10 @@ Delivery Charge (€)
 
             
 <td>
-  <small>
-    Ruokien välisummaa
-Food Subtotal: €
-    {(
-      Number(order.total_amount) -
-      Number(order.delivery_charge || 0)
-    ).toFixed(2)}
-  </small>
+  {/* Existing order totals: reflect any discount saved from the dashboard order manager. */}
+  <small>Food subtotal: €{(Number(order.total_amount) - Number(order.delivery_charge || 0) + Number(order.discount_amount || 0)).toFixed(2)}</small>
+  <br />
+  <small>Discount ({Number(order.discount_percent || 0).toFixed(2)}%): −€{Number(order.discount_amount || 0).toFixed(2)}</small>
   <br />
   <strong>
     Grand total: €{Number(order.total_amount).toFixed(2)}
@@ -1883,6 +1881,96 @@ Food Subtotal: €
             display: grid !important;
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
           }
+          /* Receipt print design: strengthen branding and highlight totals without changing receipt content. */
+          .receipt-paper { border: 1px solid #ead8b8 !important; border-top: 8px solid #c79b35 !important; color: #39291f !important; }
+          .receipt-brand { padding-bottom: 16px; border-bottom: 1px solid #ead8b8; }
+          .receipt-brand h1 { font-family: Georgia, serif; letter-spacing: 1.5px; }
+          .receipt-details-grid p { padding: 8px 10px; background: #fcf8f2; border: 1px solid #eee4d7; border-radius: 5px; }
+          .receipt-items th { color: #fff !important; background: #791d2a !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          .receipt-items tbody tr:nth-child(even) { background: #fcf8f2; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          .receipt-total { padding: 13px 15px; background: #fff3d9; border-left: 5px solid #c79b35; border-bottom: 2px solid #c79b35; border-radius: 4px; }
+          .receipt-thanks { color: #791d2a; font-weight: 600; }
+          /* Single-page receipt print: compact the cloned receipt for typical orders on A4 paper. */
+          @page { size: A4; margin: 6mm; }
+          @media print {
+            .receipt-paper { font-size: 10.5px !important; line-height: 1.25 !important; border-top-width: 4px !important; }
+            .receipt-brand { padding-bottom: 6px !important; margin-bottom: 7px !important; }
+            .receipt-brand img { width: 54px !important; height: 54px !important; }
+            .receipt-brand h1 { font-size: 20px !important; margin: 4px 0 !important; }
+            .receipt-details-grid { gap: 2px 7px !important; }
+            .receipt-details-grid p { padding: 4px 6px !important; margin: 2px 0 !important; }
+            .receipt-paper h2, .receipt-paper h3 { margin: 7px 0 5px !important; }
+            .receipt-items { margin: 7px 0 !important; font-size: 10px !important; }
+            .receipt-items th, .receipt-items td { padding: 4px 5px !important; }
+            .receipt-total { margin: 6px 0 !important; padding: 7px 9px !important; }
+            .receipt-paper hr { margin: 6px 0 !important; }
+            /* Receipt print spacing: use more of the page height while keeping the receipt readable. */
+            .receipt-paper { font-size: 11.5px !important; line-height: 1.4 !important; }
+            .receipt-brand { padding-bottom: 10px !important; margin-bottom: 12px !important; }
+            .receipt-brand img { width: 62px !important; height: 62px !important; }
+            .receipt-brand h1 { font-size: 22px !important; margin: 6px 0 !important; }
+            .receipt-details-grid { gap: 5px 9px !important; }
+            .receipt-details-grid p { padding: 6px 8px !important; margin: 4px 0 !important; }
+            .receipt-items { margin: 12px 0 !important; font-size: 11px !important; }
+            .receipt-items th, .receipt-items td { padding: 6px 7px !important; }
+            .receipt-total { margin: 10px 0 !important; padding: 10px 12px !important; }
+            /* Receipt color theme: emphasize the restaurant details and make item information easier to scan. */
+            .receipt-brand p { color: #6f4b16 !important; font-weight: 600 !important; }
+            .receipt-brand p.receipt-english { color: #791d2a !important; font-weight: 700 !important; }
+            .receipt-details-grid p { color: #35231d !important; background: #fff9ec !important; border-color: #e3cf9b !important; }
+            .receipt-details-grid strong { color: #791d2a !important; }
+            .receipt-items th { color: #fff !important; background: #791d2a !important; }
+            .receipt-items td { color: #35231d !important; border-bottom-color: #e8d7b2 !important; }
+            .receipt-items tbody tr:nth-child(even) { background: #fff7e5 !important; }
+            .receipt-total { color: #791d2a !important; background: #fff0cc !important; border-color: #b58a26 !important; }
+            /* Sky-blue receipt accents: highlight item names and charge lines, with a clear border around the printed page. */
+            .receipt-paper { border: 2px solid #3b91bd !important; border-top: 6px solid #267ba5 !important; padding: 5mm !important; }
+            .receipt-brand { border-color: #9ecfe4 !important; }
+            .receipt-brand p { color: #245c78 !important; }
+            .receipt-brand p.receipt-english { color: #175b83 !important; }
+            .receipt-details-grid p { color: #234b5d !important; background: #f0f9fc !important; border-color: #b7dce9 !important; }
+            .receipt-details-grid strong { color: #175b83 !important; }
+            .receipt-items { border: 1px solid #76b9d4 !important; }
+            .receipt-items th { background: #267ba5 !important; color: #fff !important; }
+            .receipt-items td { border-bottom-color: #c9e4ef !important; }
+            .receipt-items tbody td:first-child { color: #175b83 !important; font-weight: 700 !important; }
+            .receipt-items tbody tr:nth-child(even) { background: #edf8fc !important; }
+            .receipt-total { color: #144f70 !important; background: #e6f5fb !important; border-color: #3b91bd !important; }
+            /* Minimal receipt theme: replace colored cards with clean typography, fine dividers, and one restrained blue accent. */
+            .receipt-paper { color: #202124 !important; background: #fff !important; border: 1px solid #c79b35 !important; border-top: 4px solid #c79b35 !important; }
+            .receipt-brand { border-bottom-color: #dadce0 !important; }
+            .receipt-brand p, .receipt-brand p.receipt-english { color: #5f6368 !important; }
+            .receipt-details-grid p { color: #3c4043 !important; background: transparent !important; border: 0 !important; border-bottom: 1px solid #e8eaed !important; border-radius: 0 !important; padding: 5px 0 !important; }
+            .receipt-details-grid strong { color: #5f6368 !important; }
+            .receipt-paper h2, .receipt-paper h3 { color: #202124 !important; }
+            .receipt-items { border: 0 !important; }
+            .receipt-items th { color: #3c4043 !important; background: #f8f9fa !important; border-bottom: 2px solid #c79b35 !important; }
+            .receipt-items td { color: #3c4043 !important; border-bottom: 1px solid #e8eaed !important; }
+            .receipt-items tbody td:first-child { color: #202124 !important; font-weight: 600 !important; }
+            .receipt-items tbody tr:nth-child(even) { background: #fff !important; }
+            .receipt-total { color: #202124 !important; background: transparent !important; border: 0 !important; border-top: 2px solid #c79b35 !important; border-bottom: 1px solid #dadce0 !important; border-radius: 0 !important; padding: 9px 0 !important; }
+            /* Receipt payment block: keep the selected payment request short and separated. */
+            .receipt-payment-details { margin: 7px 0 !important; padding: 5px 0 !important; border-top: 1px solid #c79b35 !important; break-inside: avoid; }
+            .receipt-payment-details h3 { margin: 3px 0 4px !important; font-size: 12px !important; color: #202124 !important; }
+            .receipt-payment-details p { margin: 2px 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; color: #3c4043 !important; }
+            .receipt-mobile-payment { display: flex !important; align-items: center !important; gap: 8px !important; }
+            .receipt-mobile-payment img { width: 72px !important; height: 72px !important; object-fit: contain !important; }
+            .receipt-mobile-payment p { margin: 0 !important; }
+            /* Payment request page: force the selected payment method onto a distinct second A4 sheet. */
+            .receipt-payment-page { break-before: page !important; page-break-before: always !important; min-height: 270mm; box-sizing: border-box; border: 1px solid #c79b35; border-top: 5px solid #c79b35; padding: 18mm; }
+            .payment-page-brand { text-align: center; padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1px solid #dadce0; }
+            .payment-page-brand h1 { font: 700 24px Georgia, serif; color: #202124; margin: 0 0 6px; }
+            .payment-page-brand p { margin: 3px 0; color: #5f6368; }
+            /* Payment page options: separate each accepted method for easy reading and printing. */
+            .payment-method-option { margin: 14px 0 !important; padding: 12px !important; border: 1px solid #dadce0 !important; break-inside: avoid; }
+            .payment-method-option h2 { margin: 0 0 8px !important; }
+            .payment-method-option p { margin: 5px 0 !important; }
+            .receipt-payment-details { margin: 18px 0 !important; padding: 12px 0 !important; border-top: 1px solid #dadce0 !important; break-inside: avoid; }
+            .receipt-payment-details h2 { font-size: 18px !important; color: #202124 !important; }
+            .receipt-payment-details p { margin: 8px 0 !important; }
+            .receipt-payment-details .payment-instruction { margin-top: 20px !important; font-weight: 700 !important; }
+            .receipt-mobile-payment img { width: 128px !important; height: 128px !important; }
+          }
         </style>
       </head>
       <body>
@@ -1923,6 +2011,8 @@ Food Subtotal: €
 
   <p>Pateniementie 59, 90800 Oulu</p>
   <p>Puh. / Tel. +358 449803211</p>
+  {/* Receipt contact: restaurant email address. */}
+  <p>Email: desidawat.food@gmail.com</p>
 </div>
 
               <hr />
@@ -2001,11 +2091,13 @@ Order Receipt</h2>
               <p>
                 Ruokien välisummaa
 Food Subtotal: €
-                {(Number(receiptOrder.total_amount) -
-                  Number(receiptOrder.delivery_charge || 0)).toFixed(2)}
+                {(Number(receiptOrder.total_amount) - Number(receiptOrder.delivery_charge || 0) + Number(receiptOrder.discount_amount || 0)).toFixed(2)}
               </p>
-              <p>
-                Kuljetusmaksu
+              {/* Receipt display: show a discount row only when a discount percentage is greater than zero. */}
+              {Number(receiptOrder.discount_percent || 0) > 0 && (
+                <p>Discount ({Number(receiptOrder.discount_percent || 0).toFixed(2)}%): −€{Number(receiptOrder.discount_amount || 0).toFixed(2)}</p>
+              )}
+              <p>Kuljetusmaksu
 Delivery Charge: €
                 {Number(receiptOrder.delivery_charge || 0).toFixed(2)}
               </p>
@@ -2013,7 +2105,6 @@ Delivery Charge: €
                 YHTEENSÄ
 TOTAL: €{Number(receiptOrder.total_amount).toFixed(2)}
               </h2>
-
               <p>
   <strong>Tilauksen tila</strong>
   <span className="receipt-english">Order Status</span>
@@ -2041,8 +2132,39 @@ TOTAL: €{Number(receiptOrder.total_amount).toFixed(2)}
     Hyvää ruokahalua! / Enjoy your meal!
   </span>
 </p>
-            </div>
+              {/* Receipt payment request: keep the chosen method on a dedicated second print page. */}
+              <div className="receipt-payment-page">
+                <header className="payment-page-brand">
+                  <h1>DESI DAWAT</h1>
+                  <p>Payment Options / Maksutavat</p>
+                  <p>Receipt #{receiptOrder.receipt_number} · Amount due: €{Number(receiptOrder.total_amount || 0).toFixed(2)}</p>
+                </header>
+
+              <section className="receipt-payment-details">
+                  {/* Receipt payment options: list each accepted way to pay, separated for quick scanning. */}
+                  <div className="payment-method-option">
+                    <h2>1. Pay on delivery or pickup</h2>
+                    <p>Please pay €{Number(receiptOrder.total_amount || 0).toFixed(2)} when your order is {receiptOrder.order_type === "delivery" ? "delivered" : "collected"}.</p>
+                  </div>
+                  <div className="payment-method-option">
+                    <h2>2. Bank transfer / IBAN</h2>
+                    <p>Account holder: Ruchi Srivastava · Bank: OP Bank, Finland</p>
+                    <p>IBAN: FI6157445020094271</p>
+                    <p>BIC/SWIFT: OKOYFIHH</p>
+                    <p>Please transfer €{Number(receiptOrder.total_amount || 0).toFixed(2)}.</p>
+                    <p>Please show payment confirmation during delivery or pickup.</p>
+                  </div>
+                  <div className="payment-method-option">
+                    <h2>3. MobilePay QR</h2>
+                    <div className="receipt-mobile-payment">
+                      <img src="/images/MobilePay-QR.png.jpeg" alt="MobilePay QR code" />
+                      <p>Scan to pay €{Number(receiptOrder.total_amount || 0).toFixed(2)}. Please show payment confirmation during delivery or pickup.</p>
+                    </div>
+                  </div>
+                </section>
+              </div>
           </div>
+        </div>
         </div>
       )}
 

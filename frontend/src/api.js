@@ -6,13 +6,40 @@ async function request(path, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+  if (!response.ok) {
+    // Admin session handling: clear rejected tokens and notify the route guard, except for failed login attempts.
+    if (
+      (response.status === 401 || response.status === 403) &&
+      path.startsWith("/admin/") &&
+      path !== "/admin/login"
+    ) {
+      sessionStorage.removeItem("desiDawatAdminToken");
+      window.dispatchEvent(new Event("desidawat-admin-session-invalid"));
+    }
+
+    // Preserve API error codes so checkout can stop immediately for known out-of-area addresses.
+    const error = new Error(data.error || data.message || `Request failed (${response.status})`);
+    error.code = data.code;
+    throw error;
+  }
   return data;
 }
 
 export const getMenu = () => request("/menu");
+// Checkout delivery quote: let the backend apply the restaurant's distance and order-total rules.
+export const getDeliveryQuote = (deliveryAddress, foodSubtotal) =>
+  request("/delivery-quote", {
+    method: "POST",
+    body: JSON.stringify({ delivery_address: deliveryAddress, food_subtotal: foodSubtotal }),
+  });
 export const loginAdmin = (username, password) =>
   request("/admin/login", { method: "POST", body: JSON.stringify({ username, password }) });
+
+// Admin session check: verify the saved token with the backend before showing protected routes.
+export const validateAdminSession = (token) =>
+  request("/admin/session", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 
 export const getAdminMenu = (token) =>
   request("/admin/menu", { headers: { Authorization: `Bearer ${token}` } });
@@ -65,6 +92,13 @@ export const updateDeliveryCharge = (token, orderId, delivery_charge) =>
     body: JSON.stringify({ delivery_charge }),
   });
 
+// Order discount API: save an admin-entered percentage and return the recalculated bill total.
+export const updateOrderDiscount = (token, orderId, discount_percent) =>
+  request(`/admin/orders/${orderId}/discount`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ discount_percent }),
+  });
 export const getOpeningHours = () =>
   request("/opening-hours");
 

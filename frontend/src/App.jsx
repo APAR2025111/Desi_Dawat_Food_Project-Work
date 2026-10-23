@@ -4,6 +4,11 @@ import { Link, NavLink, Route, Routes } from "react-router-dom";
 import MenuPage from "./pages/MenuPage.jsx";
 import OrderConfirmation from "./pages/OrderConfirmation.jsx";
 import AdminPage from "./pages/AdminPage.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import AdminSectionPage from "./pages/AdminSectionPage.jsx";
+// Admin authentication: keep sign-in public and wrap every admin screen in the shared session guard.
+import AdminRoute from "./AdminRoute.jsx";
+import AdminLoginPage from "./pages/AdminLoginPage.jsx";
 
 function Header() {
   return (
@@ -54,10 +59,20 @@ export default function App() {
   element={<OrderConfirmation />}
 />
 
-          <Route
-            path="/admin"
-            element={<AdminPage />}
-          />
+          {/* Sign-in stays public; successful sign-in returns to the requested admin screen. */}
+<Route path="/admin/login" element={<AdminLoginPage />} />
+
+{/* Every dashboard, legacy console, and admin section requires a valid server-verified admin session. */}
+<Route element={<AdminRoute />}>
+  <Route path="/admin" element={<AdminDashboard />} />
+  <Route path="/admin/console" element={<AdminPage />} />
+  <Route path="/admin/time" element={<AdminSectionPage />} />
+  <Route path="/admin/inventory" element={<AdminSectionPage />} />
+  <Route path="/admin/flyers" element={<AdminSectionPage />} />
+  <Route path="/admin/menu" element={<AdminSectionPage />} />
+  <Route path="/admin/orders" element={<AdminSectionPage />} />
+  <Route path="/admin/reports" element={<AdminSectionPage />} />
+</Route>
 
           <Route
             path="*"

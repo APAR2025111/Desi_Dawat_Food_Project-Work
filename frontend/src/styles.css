@@ -494,6 +494,58 @@ main{flex:1}.hero{background:radial-gradient(circle at 80% 20%,#a74935 0,#7b1e24
   font-size: 13px;
 }
 
+/* Checkout totals: separate rows make the delivery estimate easy to review. */
+.checkout-price-summary {
+  margin: 20px 0;
+  padding: 14px 16px;
+  border: 1px solid #ead7c5;
+  border-radius: 10px;
+  background: #fffaf5;
+}
+
+.checkout-price-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  color: #49352d;
+}
+
+.checkout-price-total {
+  margin-top: 4px;
+  border-top: 1px solid #ead7c5;
+  color: #651b20;
+  font-size: 19px;
+}
+
+.checkout-price-summary small {
+  display: block;
+  margin-top: 6px;
+  color: #765f50;
+}
+
+/* Payment choice callout: make the receipt payment options easy for customers to notice. */
+.checkout-payment-note {
+  margin: 18px 0;
+  padding: 14px 16px;
+  border: 1px solid #e2c77f;
+  border-left: 5px solid #c39222;
+  border-radius: 9px;
+  background: #fff7e8;
+  color: #5b3714;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.checkout-payment-note p {
+  margin: 5px 0;
+}
+
+.checkout-payment-note em {
+  color: #765323;
+  font-style: normal;
+}
+
 .add-to-cart-btn {
   display: inline-block;
   margin-top: 12px;
@@ -1128,21 +1180,22 @@ main{flex:1}.hero{background:radial-gradient(circle at 80% 20%,#a74935 0,#7b1e24
   }
 
   .inventory-admin,
-  .inventory-admin * {
-    visibility: visible !important;
-  }
-
+.inventory-admin *,
+.inventory-report,
+.inventory-report * {
+  visibility: visible !important;
+}
   .inventory-admin {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 20px !important;
-    background: white !important;
-    color: #222 !important;
-    box-shadow: none !important;
-  }
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: white !important;
+  color: #111 !important;
+  box-shadow: none !important;
+}
 
   .inventory-report-actions,
   .inventory-admin form,
@@ -1159,23 +1212,34 @@ main{flex:1}.hero{background:radial-gradient(circle at 80% 20%,#a74935 0,#7b1e24
     font-size: 24px;
   }
 
-  .inventory-admin table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    font-size: 10px;
-  }
+  
+.inventory-admin table,
+.inventory-report table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  table-layout: auto !important;
+  font-size: 9pt !important;
+}
 
-  .inventory-admin th,
-  .inventory-admin td {
-    border: 1px solid #c9b08a !important;
-    padding: 5px !important;
-    color: #222 !important;
-  }
+.inventory-admin th,
+.inventory-admin td,
+.inventory-report th,
+.inventory-report td {
+  border: 1px solid #999 !important;
+  padding: 4px 5px !important;
+  color: #222 !important;
+  text-align: left !important;
+  vertical-align: top !important;
+  overflow-wrap: anywhere !important;
+}
 
-  .inventory-admin th {
-    background: #f8efe2 !important;
-    font-weight: bold;
-  }
+.inventory-admin th,
+.inventory-report th {
+  background: #f0f0f0 !important;
+  color: #111 !important;
+  font-weight: bold !important;
+}
+
 
   @page {
     size: A4 portrait;
@@ -1288,3 +1352,282 @@ main{flex:1}.hero{background:radial-gradient(circle at 80% 20%,#a74935 0,#7b1e24
   margin: 3px 0;
   line-height: 1.3;
 }
+
+/* Desi Dawat Admin Dashboard */
+.admin-dashboard {
+  max-width: 1000px;
+  margin: 32px auto;
+  padding: 0 20px;
+}
+
+.admin-dashboard-card {
+  background: #2b1d19;
+  color: #f8eee8;
+  border: 1px solid #6a4a3c;
+  border-radius: 18px;
+  padding: 28px;
+}
+
+.admin-dashboard-brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid #6a4a3c;
+  padding-bottom: 22px;
+}
+
+.admin-dashboard-brand img {
+  width: 78px;
+  height: 78px;
+  object-fit: contain;
+  border-radius: 14px;
+}
+
+.admin-dashboard-brand h1 {
+  color: #f3d08b;
+  margin: 0 0 6px;
+}
+
+.admin-dashboard-brand p,
+.admin-dashboard-brand small {
+  margin: 4px 0;
+  color: #e7d5c8;
+}
+
+/* Admin dashboard sign-out: push the session control to the right edge of the brand row. */
+.admin-dashboard-signout {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: #f8eee8;
+}
+
+.admin-dashboard-welcome {
+  margin: 24px 0 18px;
+}
+
+.admin-dashboard-welcome h2 {
+  margin-bottom: 8px;
+}
+
+.admin-dashboard-welcome p {
+  color: #e7d5c8;
+}
+
+.admin-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-dashboard-tile {
+  display: block;
+  background: #493129;
+  color: #fff8f2;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  padding: 18px;
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.admin-dashboard-tile:hover {
+  background: #5a3b30;
+  border-color: #f3d08b;
+}
+
+.admin-dashboard-icon {
+  display: block;
+  color: #f3d08b;
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
+.admin-dashboard-tile h3 {
+  margin: 0 0 8px;
+}
+
+.admin-dashboard-tile p {
+  color: #e7d5c8;
+  font-size: 14px;
+  margin: 0;
+}
+
+.admin-dashboard-back {
+  display: inline-block;
+  margin-top: 22px;
+  color: #f3d08b;
+}
+
+@media (max-width: 600px) {
+  .admin-dashboard {
+    margin: 16px auto;
+    padding: 0 12px;
+  }
+
+  .admin-dashboard-card {
+    padding: 18px;
+  }
+
+  .admin-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-dashboard-brand img {
+    width: 60px;
+    height: 60px;
+  }
+}
+
+/* Admin Time Management page */
+.time-management {
+  margin-top: 24px;
+  text-align: left;
+}
+
+.time-management form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.time-management .field-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #6b4a3d;
+  border-radius: 10px;
+  background: #392720;
+  align-items: start;
+}
+
+.time-management .field-row > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.time-management label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.time-management label:has(input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+}
+
+.time-management input[type="time"] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid #b99a82;
+  border-radius: 5px;
+}
+
+.time-management button[type="submit"] {
+  justify-self: start;
+  width: fit-content;
+  padding: 11px 20px;
+}
+
+@media (max-width: 600px) {
+  .time-management .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .time-management .field-row > div:last-child {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Inventory report print layout fix */
+@media print {
+ 
+  .inventory-report {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 8mm !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+    box-shadow: none !important;
+    visibility: visible !important;
+  }
+
+
+  .inventory-report * {
+    color: #111111 !important;
+    visibility: visible !important;
+  }
+
+  .inventory-report-header {
+    display: block !important;
+    text-align: center !important;
+    margin: 0 0 16px !important;
+    color: #111111 !important;
+  }
+
+  .inventory-report table {
+    width: 100% !important;
+    table-layout: auto !important;
+    font-size: 9pt !important;
+  }
+
+  .inventory-report th,
+  .inventory-report td {
+    color: #111111 !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+  }
+}
+
+/* Receipts and Reports dashboard: keep order summary totals readable across screen sizes. */
+.report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 26px;
+}
+.report-summary-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #6b4a3d;
+  border-radius: 10px;
+  background: #392720;
+}
+.report-summary-grid span { color: #e7d5c8; font-size: .88rem; }
+.report-summary-grid strong { color: #f3d08b; font-size: 1.35rem; }
+.report-filters { margin: 18px 0; }
+.receipts-reports .panel-heading > div p { margin: 5px 0; }
+@media (max-width: 800px) {
+  .report-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .report-summary-grid { grid-template-columns: 1fr; }
+}
+/* Report contrast fix: override dashboard's pale text on the white order table and clarify filter labels. */
+.receipts-reports .admin-table td { color: #30150e; }
+.receipts-reports .admin-table td small { color: #655244; }
+.receipts-reports .report-filters label { color: #f8eee8; }
+.receipts-reports .report-filters select { color: #30150e; }
+/* Order discount controls: keep order details readable on the light table and size discount inputs clearly. */
+.order-management .admin-table { min-width: 1200px; }
+.order-management .admin-table td { color: #30150e; }
+.order-management .admin-table td small { color: #655244; }
+.order-management .order-discount-control { display: grid; gap: 6px; min-width: 120px; }
+.order-management .order-discount-control label { color: #30150e; font-weight: 600; }
+.order-management .order-discount-control input { box-sizing: border-box; width: 100%; padding: 8px; border: 1px solid #b99a82; border-radius: 5px; color: #30150e; background: #fffdfb; }

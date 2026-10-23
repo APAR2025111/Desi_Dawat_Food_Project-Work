@@ -134,8 +134,6 @@ console.log("Opening hours received:", JSON.stringify(hours, null, 2));
     } // closes the for loop
 
     await connection.commit();
-
-    await connection.commit();
     res.json({ message: "Opening hours saved successfully." });
   } catch (error) {
     await connection.rollback();
@@ -290,6 +288,11 @@ app.post("/api/admin/login", async (req, res) => {
   );
 
   res.json({ token, username });
+});
+
+// Admin session validation: called by the frontend before rendering protected admin pages.
+app.get("/api/admin/session", requireAdmin, (req, res) => {
+  res.json({ role: req.admin.role, username: req.admin.username });
 });
 
 // Admin: list all items, including hidden items.
@@ -465,6 +468,7 @@ app.post("/api/orders", async (req, res) => {
     !customer_name?.trim() ||
     !customer_phone?.trim() ||
     !["delivery", "takeaway"].includes(order_type) ||
+    // Payment options: allow delivery/pickup, bank transfer, and MobilePay QR.
     !["mobile_scan_pay", "iban_transfer", "pay_on_delivery"].includes(payment_method) ||
     !Array.isArray(items) ||
     items.length === 0
@@ -531,18 +535,31 @@ app.post("/api/orders", async (req, res) => {
     totalAmount = Number(totalAmount.toFixed(2));
     let deliveryCharge = 0;
     let deliveryDistanceKm = null;
+    let deliveryChargePendingManualReview = false;
     if (order_type === "delivery") {
-      const quote = await calculateDesiDawatDeliveryQuote(delivery_address, totalAmount);
-      deliveryCharge = quote.delivery_charge;
-      deliveryDistanceKm = quote.distance_km;
+      try {
+        const quote = await calculateDesiDawatDeliveryQuote(delivery_address, totalAmount);
+        deliveryCharge = quote.delivery_charge;
+        deliveryDistanceKm = quote.distance_km;
+      } catch (quoteError) {
+        if (quoteError.code !== "DELIVERY_ROUTE_UNAVAILABLE") throw quoteError;
+        // Save the order for staff to verify the address and set its delivery fee before accepting it.
+        deliveryChargePendingManualReview = true;
+        console.warn("Delivery route unavailable; order saved for manual fee review:", quoteError.message);
+      }
     }
     const foodSubtotal = totalAmount;
     totalAmount = Number((foodSubtotal + deliveryCharge).toFixed(2));
 
+    // Record manual delivery-fee review in the order notes so staff can see and resolve it.
+    const persistedCustomerNotes = [
+      customer_notes?.trim(),
+      deliveryChargePendingManualReview ? "DELIVERY CHARGE PENDING MANUAL REVIEW — verify address and set charge before accepting." : null,
+    ].filter(Boolean).join("\n") || null;
     const [orderResult] = await connection.execute(
       `INSERT INTO customer_orders
        (customer_name, customer_phone, order_type,
- payment_method, delivery_address, customer_notes,delivery_charge, delivery_distance_km,total_amount)
+ payment_method, delivery_address, customer_notes, delivery_charge, delivery_distance_km, total_amount)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 [
   customer_name.trim(),
@@ -550,7 +567,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   order_type,
   payment_method,
   order_type === "delivery" ? delivery_address.trim() : null,
-  customer_notes?.trim() || null,
+  persistedCustomerNotes,
   deliveryCharge,
 deliveryDistanceKm,
   totalAmount,
@@ -582,6 +599,7 @@ deliveryDistanceKm,
       message: "Order saved successfully.",
       order_id: orderId,
       total_amount: totalAmount,
+      delivery_charge_pending_manual_review: deliveryChargePendingManualReview,
     });
   } catch (error) {
     if (connection) {
@@ -590,8 +608,9 @@ deliveryDistanceKm,
 
     console.error("Order creation failed:", error);
 
-    return res.status(500).json({
-      message: "Could not save the order. Please try again.",
+    return res.status(error.statusCode || 500).json({
+      message: error.message || "Could not save the order. Please try again.",
+      code: error.code || "ORDER_SAVE_FAILED",
     });
   } finally {
     connection?.release();
@@ -599,19 +618,45 @@ deliveryDistanceKm,
 });
 
 
+// Order discounts: add the saved discount fields on first admin order access for existing databases.
+let orderDiscountSchemaPromise;
+async function ensureOrderDiscountSchema() {
+  if (!orderDiscountSchemaPromise) {
+    orderDiscountSchemaPromise = (async () => {
+      const [columns] = await pool.query("SHOW COLUMNS FROM customer_orders");
+      const existingColumns = new Set(columns.map((column) => column.Field));
+      if (!existingColumns.has("discount_percent")) {
+        await pool.query("ALTER TABLE customer_orders ADD COLUMN discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0");
+      }
+      if (!existingColumns.has("discount_amount")) {
+        await pool.query("ALTER TABLE customer_orders ADD COLUMN discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0");
+      }
+    })();
+  }
+  try {
+    await orderDiscountSchemaPromise;
+  } catch (error) {
+    orderDiscountSchemaPromise = null;
+    throw error;
+  }
+}
 /* Admin: list customer orders with their ordered dishes. */
 app.get("/api/admin/orders", requireAdmin, async (req, res) => {
   try {
+    await ensureOrderDiscountSchema();
     const [orders] = await pool.query(`
       SELECT
         order_id,
         customer_name,
         customer_phone,
+        payment_method,
         order_type,
         delivery_address,
         customer_notes,
         delivery_charge,
-delivery_distance_km,
+        discount_percent,
+        discount_amount,
+        delivery_distance_km,
         total_amount,
         order_status,
         created_at
@@ -719,8 +764,9 @@ app.put(
     const roundedCharge = Number(deliveryCharge.toFixed(2));
 
     try {
+      await ensureOrderDiscountSchema();
       const [orders] = await pool.execute(
-        `SELECT order_id, order_type, total_amount, delivery_charge
+        `SELECT order_id, order_type, total_amount, delivery_charge, discount_amount
          FROM customer_orders
          WHERE order_id = ?`,
         [orderId]
@@ -741,7 +787,7 @@ app.put(
       const currentCharge = Number(order.delivery_charge || 0);
       const currentTotal = Number(order.total_amount);
       const foodSubtotal = Number(
-        (currentTotal - currentCharge).toFixed(2)
+        (currentTotal - currentCharge + Number(order.discount_amount || 0)).toFixed(2)
       );
 
       if (foodSubtotal < 0) {
@@ -751,7 +797,7 @@ app.put(
       }
 
       const newTotal = Number(
-        (foodSubtotal + roundedCharge).toFixed(2)
+        (foodSubtotal - Number(order.discount_amount || 0) + roundedCharge).toFixed(2)
       );
 
       await pool.execute(
@@ -779,6 +825,42 @@ app.put(
 );
 
 
+// Order discounts: store a percentage off the food subtotal; delivery remains full price.
+app.put("/api/admin/orders/:id/discount", requireAdmin, async (req, res) => {
+  const orderId = Number(req.params.id);
+  const rawPercent = req.body.discount_percent;
+  const discountPercent = Number(rawPercent);
+  if (!Number.isInteger(orderId) || orderId < 1) return res.status(400).json({ error: "Invalid order ID." });
+  if (rawPercent === undefined || rawPercent === null || rawPercent === "" || !Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    return res.status(400).json({ error: "Discount must be between 0% and 100%." });
+  }
+  const roundedPercent = Number(discountPercent.toFixed(2));
+  try {
+    await ensureOrderDiscountSchema();
+    const [orders] = await pool.execute(
+      `SELECT order_id, total_amount, delivery_charge, discount_amount
+       FROM customer_orders WHERE order_id = ?`,
+      [orderId]
+    );
+    if (orders.length === 0) return res.status(404).json({ error: "Order not found." });
+    const order = orders[0];
+    const deliveryCharge = Number(order.delivery_charge || 0);
+    const foodSubtotal = Number((Number(order.total_amount) - deliveryCharge + Number(order.discount_amount || 0)).toFixed(2));
+    if (foodSubtotal < 0) return res.status(500).json({ error: "The existing order total is invalid." });
+    const discountAmount = Number((foodSubtotal * roundedPercent / 100).toFixed(2));
+    const newTotal = Number((foodSubtotal - discountAmount + deliveryCharge).toFixed(2));
+    await pool.execute(
+      `UPDATE customer_orders
+       SET discount_percent = ?, discount_amount = ?, total_amount = ?
+       WHERE order_id = ?`,
+      [roundedPercent, discountAmount, newTotal, orderId]
+    );
+    return res.json({ message: "Order discount saved successfully.", order_id: orderId, discount_percent: roundedPercent, discount_amount: discountAmount, food_subtotal: foodSubtotal, delivery_charge: deliveryCharge, total_amount: newTotal });
+  } catch (error) {
+    console.error("PUT /api/admin/orders/:id/discount:", error);
+    return res.status(500).json({ error: "Could not save the order discount." });
+  }
+});
 /* Admin: delete a customer order. */
 app.delete(
   "/api/admin/orders/:id",
@@ -844,13 +926,47 @@ app.use((error, _req, res, _next) => {
     error: "Unexpected server error.",
   });
 });
+// Delivery-distance provider settings. Keep the public routing API key in the backend environment only.
 const DESI_DAWAT_DELIVERY_ORIGIN = "Lidl Pateniemi, Pateniementie, Oulu, Finland";
+const HEIGIT_API_BASE = "https://api.heigit.org";
+let cachedDeliveryOriginCoordinates = null;
+
+async function geocodeDeliveryAddress(address, apiKey) {
+  const search = new URL(`${HEIGIT_API_BASE}/pelias/v1/search`);
+  search.searchParams.set("text", address);
+  search.searchParams.set("boundary.country", "FIN");
+  search.searchParams.set("size", "1");
+
+  let response;
+  try {
+    response = await fetch(search, { headers: { Authorization: apiKey } });
+  } catch (networkError) {
+    console.error("HeiGIT geocoding request failed:", networkError.message);
+    const error = new Error("Address lookup is temporarily unavailable. Please try again shortly.");
+    error.statusCode = 503;
+    error.code = "DELIVERY_ROUTE_UNAVAILABLE";
+    throw error;
+  }
+  const result = await response.json().catch(() => ({}));
+  const coordinates = result?.features?.[0]?.geometry?.coordinates;
+  if (!response.ok || !Array.isArray(coordinates) || coordinates.length < 2 ||
+      !Number.isFinite(coordinates[0]) || !Number.isFinite(coordinates[1])) {
+    console.error("HeiGIT geocoding failed:", response.status, result?.message || "No location returned");
+    const error = new Error("We could not locate this address in Finland. Check the address and try again.");
+    error.statusCode = 422;
+    error.code = "DELIVERY_ROUTE_UNAVAILABLE";
+    throw error;
+  }
+
+  return coordinates;
+}
 
 async function calculateDesiDawatDeliveryQuote(deliveryAddress, foodSubtotal) {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const apiKey = process.env.OPENROUTESERVICE_API_KEY;
   if (!apiKey) {
     const error = new Error("Delivery distance service is not configured. Please contact Desi Dawat.");
     error.statusCode = 503;
+    error.code = "DELIVERY_ROUTE_UNAVAILABLE";
     throw error;
   }
 
@@ -862,29 +978,46 @@ async function calculateDesiDawatDeliveryQuote(deliveryAddress, foodSubtotal) {
     throw error;
   }
 
-  const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask": "routes.distanceMeters",
-    },
-    body: JSON.stringify({
-      origin: { address: DESI_DAWAT_DELIVERY_ORIGIN },
-      destination: { address },
-      travelMode: "DRIVE",
-      regionCode: "FI",
-      languageCode: "en",
-      units: "METRIC",
-    }),
-  });
+  if (!cachedDeliveryOriginCoordinates) {
+    cachedDeliveryOriginCoordinates = await geocodeDeliveryAddress(DESI_DAWAT_DELIVERY_ORIGIN, apiKey);
+  }
+  // If a customer omits the city, retry address lookup in Oulu, where this restaurant delivers.
+  let destinationCoordinates;
+  try {
+    destinationCoordinates = await geocodeDeliveryAddress(`${address}, Finland`, apiKey);
+  } catch (lookupError) {
+    if (lookupError.statusCode !== 422 || /\boulu\b/i.test(address)) throw lookupError;
+    destinationCoordinates = await geocodeDeliveryAddress(`${address}, Oulu, Finland`, apiKey);
+  }
+  let response;
+  try {
+    response = await fetch(`${HEIGIT_API_BASE}/openrouteservice/v2/directions/driving-car`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: apiKey,
+      },
+      body: JSON.stringify({
+        coordinates: [cachedDeliveryOriginCoordinates, destinationCoordinates],
+        units: "m",
+        instructions: false,
+      }),
+    });
+  } catch (networkError) {
+    console.error("HeiGIT routing request failed:", networkError.message);
+    const error = new Error("Route calculation is temporarily unavailable. Please try again shortly.");
+    error.statusCode = 503;
+    error.code = "DELIVERY_ROUTE_UNAVAILABLE";
+    throw error;
+  }
 
   const result = await response.json().catch(() => ({}));
-  const meters = result?.routes?.[0]?.distanceMeters;
+  const meters = result?.routes?.[0]?.summary?.distance;
   if (!response.ok || !Number.isFinite(meters)) {
-    console.error("Google Routes API failed:", response.status, result?.error?.message || "No route returned");
+    console.error("HeiGIT routing failed:", response.status, result?.error?.message || result?.message || "No route returned");
     const error = new Error("We could not calculate a driving route for this address. Check the address and try again.");
     error.statusCode = 422;
+    error.code = "DELIVERY_ROUTE_UNAVAILABLE";
     throw error;
   }
 
@@ -894,6 +1027,7 @@ async function calculateDesiDawatDeliveryQuote(deliveryAddress, foodSubtotal) {
   if (meters > 15000) {
     const error = new Error("This address is more than 15 km away from Lidl Pateniemi and is outside our standard delivery area. Please contact us to check availability.");
     error.statusCode = 422;
+    error.code = "DELIVERY_OUT_OF_AREA";
     throw error;
   }
 
@@ -934,8 +1068,10 @@ app.post("/api/delivery-quote", async (req, res) => {
     );
     return res.json(quote);
   } catch (error) {
+    // Return a stable error code so checkout can distinguish out-of-area addresses from temporary quote failures.
     return res.status(error.statusCode || 502).json({
       message: error.message || "Could not calculate delivery charge.",
+      code: error.code || "DELIVERY_QUOTE_FAILED",
     });
   }
 });
@@ -960,6 +1096,10 @@ app.post(
 
 app.use("/uploads", express.static(uploadDir));
 
+// Inventory size validation: the Size column accepts gm/ml measurements only; package counts belong in Unit.
+function isValidInventorySize(value) {
+  return value == null || String(value).trim() === "" || /^[0-9]+(?:\.[0-9]+)?\s*(?:gm|ml)$/i.test(String(value).trim());
+}
 const inventoryFields = [
   "item_name",
   "item_name_hindi",
@@ -988,6 +1128,10 @@ app.get("/api/admin/inventory", requireAdmin, async (req, res) => {
 
 app.post("/api/admin/inventory", requireAdmin, async (req, res) => {
   try {
+    // Inventory size API guard: reject labels such as "can" or "pieces" in item_size.
+    if (!isValidInventorySize(req.body.item_size)) {
+      return res.status(400).json({ message: "Size must use gm or ml only. Put can/pieces in Unit." });
+    }
     const values = inventoryFields.map((field) => {
       const value = req.body[field];
       return value === "" || value === undefined ? null : value;
@@ -1017,6 +1161,10 @@ app.post("/api/admin/inventory", requireAdmin, async (req, res) => {
 
 app.put("/api/admin/inventory/:id", requireAdmin, async (req, res) => {
   try {
+    // Inventory size API guard: apply the gm/ml rule when editing existing stock.
+    if (Object.prototype.hasOwnProperty.call(req.body, "item_size") && !isValidInventorySize(req.body.item_size)) {
+      return res.status(400).json({ message: "Size must use gm or ml only. Put can/pieces in Unit." });
+    }
     const updates = inventoryFields.filter((field) =>
       Object.prototype.hasOwnProperty.call(req.body, field)
     );

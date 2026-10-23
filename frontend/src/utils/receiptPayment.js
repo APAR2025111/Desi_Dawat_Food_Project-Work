@@ -1,0 +1,7 @@
+// Receipt payment request: list all three choices on a separate, clearly divided second page.
+export function buildReceiptPaymentDetails(order, formatMoney) {
+  const amount = `€${formatMoney(order.total_amount)}`;
+  const pickupOrDelivery = order.order_type === "delivery" ? "delivery" : "pickup";
+  const receiptNumber = order.receipt_number || order.order_id || "—";
+  return `<div class="receipt-payment-page"><header class="payment-page-brand"><h1>DESI DAWAT</h1><p>Payment Options / Maksutavat</p><p>Receipt #${receiptNumber} · Amount due: ${amount}</p></header><section class="receipt-payment-details"><div class="payment-method-option"><h2>1. Pay on delivery or pickup</h2><p>Please pay ${amount} when your order is ${pickupOrDelivery === "delivery" ? "delivered" : "collected"}.</p></div><div class="payment-method-option"><h2>2. Bank transfer / IBAN</h2><p>Account holder: Ruchi Srivastava · Bank: OP Bank, Finland</p><p>IBAN: FI6157445020094271</p><p>BIC/SWIFT: OKOYFIHH</p><p>Please transfer ${amount}.</p><p>Please show payment confirmation during delivery or pickup.</p></div><div class="payment-method-option"><h2>3. MobilePay QR</h2><div class="receipt-mobile-payment"><img src="/images/MobilePay-QR.png.jpeg" alt="MobilePay QR code"><p>Scan to pay ${amount}.<br>Please show payment confirmation during delivery or pickup.</p></div></div></section></div>`;
+}
