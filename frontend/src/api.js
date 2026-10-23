@@ -42,7 +42,7 @@ export const validateAdminSession = (token) =>
   });
 
 export const getAdminMenu = (token) =>
-  request("/admin/menu", { headers: { Authorization: `Bearer ${token}` } });
+  request("/admin/menu", { cache: "no-store", headers: { Authorization: `Bearer ${token}` } });
 
 export const saveMenuItem = (token, item) => {
   const editing = Boolean(item.item_id);

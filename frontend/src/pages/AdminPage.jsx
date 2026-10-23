@@ -205,16 +205,16 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
 
             <hr />
 
-            <h2>📋 RUOKALISTA-TILAUKSET/ MENU-ORDERS </h2>
+            <h2>📋 RUOKALISTAN ENNAKKOTILAUKSET / MENU PRE-ORDERS </h2>
             <p>
-              <a href="https://drive.google.com/file/d/1hFz08DQoDrXuKx1zyj_nTuQZHui1b3TQ/view?usp=sharing" target="_blank" rel="noopener noreferrer">
+              <a href="https://drive.google.com/file/d/148Jb31MPW50SbUWmTFwsH1td9DkigM6V/view?usp=sharing" target="_blank" rel="noopener noreferrer">
                 Avaa ruokalista/View Menu 
               </a>
             </p>
 
-            <h2>📲  NÄIN TILAAT/HOW TO ORDER</h2>
-            <p>🇫🇮 Lähetä WhatsApp-viesti ja ilmoita tuotenumero, määrä sekä toivottu nouto- tai toimitusaika.</p>
-            <p>🇬🇧 Send a WhatsApp message with the item number, quantity, and preferred pickup or delivery time.</p>
+            <h2>📲  NÄIN TEET ENNAKKOTILAUKSEN / HOW TO PRE-ORDER</h2>
+            <p>🇫🇮 Tee ennakkotilaus WhatsAppilla ja ilmoita tuotenumero, määrä sekä toivottu nouto- tai toimitusaika.</p>
+            <p>🇬🇧 Place your pre-order via WhatsApp and include the item number, quantity, and preferred pickup or delivery time.</p>
             <p><a href="https://wa.me/358449803211">WhatsApp: +358 44 980 3211</a></p>
 
             <hr />
@@ -439,8 +439,7 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
 
           return `
             <div class="flyer-hours-day">
-              <strong>${fi}</strong>
-              <small>${en}</small>
+              ${flyerDay === "all-menu" ? `<strong>${fi}</strong><small>${en}</small>` : `<strong>${en} - Menu</strong>`}
               <p>Aamu / Morning: <span class="hours-time">${morning}</span></p>
               <p>Ilta / Evening: <span class="hours-time">${evening}</span></p>
             </div>
@@ -2171,4 +2170,3 @@ TOTAL: €{Number(receiptOrder.total_amount).toFixed(2)}
     </section>
   );
 }
-
