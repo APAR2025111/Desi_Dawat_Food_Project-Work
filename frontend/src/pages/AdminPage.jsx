@@ -2,8 +2,10 @@ import React from "react";
 import { useCallback, useEffect, useState } from "react";
 // Admin console navigation: send sign-out and rejected sessions back to the public sign-in page.
 import { useNavigate } from "react-router-dom";
+import Letterhead from "../components/Letterhead.jsx";
 // Inventory size: normalize older size labels and restrict newly saved values to gm/ml.
 import { isValidInventorySize, normalizeInventorySize } from "../utils/inventorySize.js";
+import { getCustomerNoteForOrderPanel } from "../utils/orderNotes.js";
 
 import {
   deleteMenuItem,
@@ -20,6 +22,9 @@ import {
   addInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
+  API_BASE,
+  API_ORIGIN,
+  resolveImageUrl,
 } from "../api.js";
 
 
@@ -106,12 +111,14 @@ const handleGenerateFlyer = () => {
     const escapeFlyerText = (value) => String(value ?? "").replace(/[&<>\"']/g, (character) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
     })[character]);
-    const welcomeHoursMarkup = openingHours.map((day) => {
+    const welcomeHoursMarkup = openingHours.filter((day) => day.day_key !== "fri").map((day) => {
       const periods = [];
       if (!day.morning_closed && day.morning_open && day.morning_close) periods.push(`${day.morning_open}–${day.morning_close}`);
       if (!day.evening_closed && day.evening_open && day.evening_close) periods.push(`${day.evening_open}–${day.evening_close}`);
       const schedule = periods.length ? periods.join(", ") : "Suljettu / Closed";
-      return `<strong>${escapeFlyerText(day.day_fi)} / ${escapeFlyerText(day.day_en)}: ${escapeFlyerText(schedule)}</strong><br />`;
+      const dayFi = day.day_key === "mon_thu" ? "Maanantai–perjantai" : day.day_fi;
+      const dayEn = day.day_key === "mon_thu" ? "Monday–Friday" : day.day_en;
+      return `<strong>${escapeFlyerText(dayFi)} / ${escapeFlyerText(dayEn)}: ${escapeFlyerText(schedule)}</strong><br />`;
     }).join("") || "<strong>Aukioloajat eivät saatavilla / Opening hours unavailable</strong>";
 
     const availableItems = items.filter((item) => {
@@ -410,15 +417,14 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
             </header>
             ${(() => {
   const days = [
-    { key: "mon_thu", fi: "Maanantai–torstai", en: "Monday–Thursday" },
-    { key: "fri", fi: "Perjantai", en: "Friday" },
+    { key: "mon_thu", fi: "Maanantai–perjantai", en: "Monday–Friday" },
     { key: "sat", fi: "Lauantai", en: "Saturday" },
     { key: "sun", fi: "Sunnuntai", en: "Sunday" },
   ];
 
   const formatTime = (time) => time ? String(time).slice(0, 5) : "";
   // Daily menu flyers show only the selected day's schedule; the full menu retains the weekly schedule.
-  const selectedHoursKey = ["mon", "tue", "wed", "thu"].includes(flyerDay) ? "mon_thu" : flyerDay;
+  const selectedHoursKey = ["mon", "tue", "wed", "thu", "fri"].includes(flyerDay) ? "mon_thu" : flyerDay;
   const visibleDays = flyerDay === "all-menu" ? days : days.filter(({ key }) => key === selectedHoursKey);
 
   return `
@@ -468,7 +474,7 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
                 <p>
   ${(() => {
   const day =
-  openingHours.find((d) => d.day_key === flyerDay) ||
+  openingHours.find((d) => d.day_key === (["mon", "tue", "wed", "thu", "fri"].includes(flyerDay) ? "mon_thu" : flyerDay)) ||
   openingHours.find((d) => d.day_key === "mon_thu") ||
   undefined;
 
@@ -547,30 +553,30 @@ const image = document.createElement("img");
 const imageName = String(dish.item_name || "").trim().toLowerCase();
 
 const imageFiles = {
-  "chole": "Chole.png",
-  "chilli paneer": "Chilli Paneer.png",
-  "dal makhani": "Dal Makhani.png",
-  "dahi vada": "Dahi Vada.png",
-  "kadai paneer": "Kadai Paneer.png",
-  "lobio e khas": "Lobio-e-Khas.png",
-  "lobio-e-khas": "Lobio-e-Khas.png",
-  "mushroom e khas": "Mushroom-e-Khas.png",
-  "mushroom-e-khas": "Mushroom-e-Khas.png",
-  "palak e khas": "Palak-e-Khas.png",
-  "palak-e-khas": "Palak-e-Khas.png",
-  "paneer kofta": "Paneer Kofta.png",
-  "paneer tikka masala": "Paneer Tikka Masala.png",
-  "shahi paneer": "Shahi Paneer.png",
-  "veg pulav": "Vegetable_Pulav.png",
-  "veg pulao": "Vegetable_Pulav.png",
-  "vegetable pulav": "Vegetable_Pulav.png",
-  "vegetable pulao": "Vegetable_Pulav.png",
-  "mini meal": "Mini Meal.png",
-  "bhature": "Bread Pakoda.png"
+  "chole": "Chole.webp",
+  "chilli paneer": "Chilli Paneer.webp",
+  "dal makhani": "Dal Makhani.webp",
+  "dahi vada": "Dahi Vada.webp",
+  "kadai paneer": "Kadai Paneer.webp",
+  "lobio e khas": "Lobio-e-Khas.webp",
+  "lobio-e-khas": "Lobio-e-Khas.webp",
+  "mushroom e khas": "Mushroom-e-Khas.webp",
+  "mushroom-e-khas": "Mushroom-e-Khas.webp",
+  "palak e khas": "Palak-e-Khas.webp",
+  "palak-e-khas": "Palak-e-Khas.webp",
+  "paneer kofta": "Paneer Kofta.webp",
+  "paneer tikka masala": "Paneer Tikka Masala.webp",
+  "shahi paneer": "Shahi Paneer.webp",
+  "veg pulav": "Vegetable_Pulav.webp",
+  "veg pulao": "Vegetable_Pulav.webp",
+  "vegetable pulav": "Vegetable_Pulav.webp",
+  "vegetable pulao": "Vegetable_Pulav.webp",
+  "mini meal": "Mini Meal.webp",
+  "bhature": "Bread Pakoda.webp"
 };
 
 
-const savedImageUrl = String(dish.image_url || "").trim();
+const savedImageUrl = resolveImageUrl(dish.image_url);
 
 image.src = savedImageUrl
   ? savedImageUrl
@@ -1026,7 +1032,7 @@ Delivery Charge saved for order #${order.order_id}.`);
       try {
         const token = sessionStorage.getItem("desiDawatAdminToken");
         const response = await fetch(
-          "http://localhost:3001/api/admin/upload",
+          `${API_BASE}/admin/upload`,
           {
             method: "POST",
             headers: {
@@ -1044,7 +1050,7 @@ Delivery Charge saved for order #${order.order_id}.`);
 
         setForm({
           ...form,
-          image_url: `http://localhost:3001${result.image_url}`,
+          image_url: `${API_ORIGIN}${result.image_url}`,
         });
 
         alert("Food picture uploaded successfully.");
@@ -1320,12 +1326,7 @@ disabled={flyerGenerating}
 
 <section className="panel inventory-admin">
   <div className="inventory-print-header">
-  <img src="/images/LOGO.jpeg" alt="Desi Dawat Logo" />
-  <h1>DESI DAWAT</h1>
-  <p>Tuoretta intialaista kasvisruokaa</p>
-  <p>Fresh Indian Vegetarian Food</p>
-  <p>Pateniementie 59, 90800 Oulu</p>
-  <p>Puh. / Tel. +358 449803211</p>
+  <Letterhead />
 
   <hr />
   <h2>INVENTORY REPORT / VARASTORAPORTTI</h2>
@@ -1679,8 +1680,11 @@ disabled={flyerGenerating}
               {order.delivery_address && (
                 <small>{order.delivery_address}</small>
               )}
-              {order.customer_notes && (
-                <small>Note: {order.customer_notes}</small>
+              {order.preferred_time && (
+                <small>Preferred {order.order_type === "delivery" ? "delivery" : "pickup"} time: {String(order.preferred_time).slice(0, 5)}</small>
+              )}
+              {getCustomerNoteForOrderPanel(order.customer_notes) && (
+                <small>Note: {getCustomerNoteForOrderPanel(order.customer_notes)}</small>
               )}
             </td>
             <td>
@@ -1968,7 +1972,7 @@ Delivery Charge (€)
             .receipt-payment-details h2 { font-size: 18px !important; color: #202124 !important; }
             .receipt-payment-details p { margin: 8px 0 !important; }
             .receipt-payment-details .payment-instruction { margin-top: 20px !important; font-weight: 700 !important; }
-            .receipt-mobile-payment img { width: 128px !important; height: 128px !important; }
+            .receipt-mobile-payment img { width: 256px !important; height: 256px !important; }
           }
         </style>
       </head>
@@ -1998,21 +2002,7 @@ Delivery Charge (€)
             </div>
 
             <div className="receipt-paper">
-             <div className="receipt-brand">
-  <img src="/images/LOGO.jpeg" alt="Desi Dawat logo" />
-
-  <h1>DESI DAWAT</h1>
-
-  <p>Tuoretta intialaista kasvisruokaa</p>
-  <p className="receipt-english">
-    Fresh Indian Vegetarian Food
-  </p>
-
-  <p>Pateniementie 59, 90800 Oulu</p>
-  <p>Puh. / Tel. +358 449803211</p>
-  {/* Receipt contact: restaurant email address. */}
-  <p>Email: desidawat.food@gmail.com</p>
-</div>
+             <Letterhead className="receipt-brand desi-letterhead" />
 
               <hr />
 
@@ -2054,6 +2044,13 @@ Order Receipt</h2>
     <strong>Toimitusosoite</strong>
     <span className="receipt-english">Delivery Address</span>
     {receiptOrder.delivery_address}
+  </p>
+)}
+              {receiptOrder.preferred_time && (
+  <p>
+    <strong>Toivottu {receiptOrder.order_type === "delivery" ? "toimitusaika" : "noutoaika"}</strong>
+    <span className="receipt-english">Preferred {receiptOrder.order_type === "delivery" ? "delivery" : "pickup"} time</span>
+    {String(receiptOrder.preferred_time).slice(0, 5)}
   </p>
 )}
 
@@ -2135,6 +2132,8 @@ TOTAL: €{Number(receiptOrder.total_amount).toFixed(2)}
               <div className="receipt-payment-page">
                 <header className="payment-page-brand">
                   <h1>DESI DAWAT</h1>
+                  <p>Perinteinen intialainen perhekeittiö</p>
+                  <p className="receipt-english">Traditional Indian Family Kitchen</p>
                   <p>Payment Options / Maksutavat</p>
                   <p>Receipt #{receiptOrder.receipt_number} · Amount due: €{Number(receiptOrder.total_amount || 0).toFixed(2)}</p>
                 </header>
@@ -2156,7 +2155,7 @@ TOTAL: €{Number(receiptOrder.total_amount).toFixed(2)}
                   <div className="payment-method-option">
                     <h2>3. MobilePay QR</h2>
                     <div className="receipt-mobile-payment">
-                      <img src="/images/MobilePay-QR.png.jpeg" alt="MobilePay QR code" />
+                      <img src="/images/Mobile_Pay_QR.jpeg" alt="MobilePay QR code" />
                       <p>Scan to pay €{Number(receiptOrder.total_amount || 0).toFixed(2)}. Please show payment confirmation during delivery or pickup.</p>
                     </div>
                   </div>

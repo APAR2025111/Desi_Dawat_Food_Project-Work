@@ -76,3 +76,27 @@ The admin can add, edit, show/hide, and delete items. Changes are stored in MySQ
 - Admin API endpoints require a JWT obtained by logging in.
 - This is a local development starter. Before public production deployment, use HTTPS, a strong unique admin password/JWT secret, backups, and production-grade hosting/secrets management.
 - The backend expects the existing `menu_items` table. It does not automatically drop or overwrite your tables.
+
+## Automated checks
+
+Frontend unit tests and production build (from `frontend`):
+
+```powershell
+npm test
+npm run build
+```
+
+Backend API integration checks (from `backend`, no database needed):
+
+```powershell
+npm test
+```
+
+Browser customer journey and mobile layout checks (from `frontend`):
+
+```powershell
+npx playwright install chromium
+npm run test:e2e
+```
+
+For Hostinger app roots, build settings, environment variables, migration preflight, backup, and release guidance, see [DEPLOYMENT.md](./DEPLOYMENT.md). Review [PROJECT_AUDIT.md](./PROJECT_AUDIT.md) for known risks and what still needs staging verification.

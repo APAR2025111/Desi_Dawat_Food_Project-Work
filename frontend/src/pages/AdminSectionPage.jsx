@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import Letterhead from "../components/Letterhead.jsx";
 // Inventory report: normalize legacy package labels to measurement-only gm/ml sizes.
 import { normalizeInventorySize } from "../utils/inventorySize.js";
 import {
@@ -17,6 +18,7 @@ import FlyerManagement from "./FlyerManagement.jsx";
 import MenuManagement from "./MenuManagement.jsx";
 // Orders page: connect the dashboard route to its dedicated order tools.
 import OrdersManagement from "./OrdersManagement.jsx";
+import CustomerManagement from "./CustomerManagement.jsx";
 // Reports page: connect dashboard receipts and reports to their dedicated view.
 import ReportsManagement from "./ReportsManagement.jsx";
 
@@ -41,6 +43,10 @@ const sectionDetails = {
   "/admin/orders": {
     title: "Order Management",
     description: "View and manage customer orders.",
+  },
+  "/admin/customers": {
+    title: "Customer Management",
+    description: "Manage saved customer profiles and purchase history.",
   },
   "/admin/reports": {
     title: "Receipts & Reports",
@@ -403,14 +409,7 @@ useEffect(() => {
 
         <div className="inventory-report">
           <header className="inventory-report-header">
-            <img
-              src="/images/LOGO.jpeg"
-              alt="Desi Dawat logo"
-              style={{ width: 85, height: "auto" }}
-            />
-            <h2>DESI DAWAT</h2>
-            <p>Indian Vegetarian Food / Intialaista kasvisruokaa</p>
-            <p>Pateniementie 59, 90800 Oulu</p>
+            <Letterhead />
             <h3>INVENTORY REPORT / VARASTORAPORTTI</h3>
             <p>Report date: {new Date().toLocaleDateString("fi-FI")}</p>
           </header>
@@ -474,6 +473,8 @@ useEffect(() => {
   <ReportsManagement token={token} />
 ) : location.pathname === "/admin/orders" ? (
   <OrdersManagement token={token} />
+) : location.pathname === "/admin/customers" ? (
+  <CustomerManagement token={token} />
 ) : location.pathname === "/admin/menu" ? (
   <MenuManagement token={token} />
 ) : location.pathname === "/admin/flyers" ? (

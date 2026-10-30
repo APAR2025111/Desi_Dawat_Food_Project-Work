@@ -2,13 +2,15 @@
 import React from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
 import MenuPage from "./pages/MenuPage.jsx";
-import OrderConfirmation from "./pages/OrderConfirmation.jsx";
+import OrderConfirmation from "./pages/OrderReceiptConfirmation.jsx";
 import AdminPage from "./pages/AdminPage.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminSectionPage from "./pages/AdminSectionPage.jsx";
 // Admin authentication: keep sign-in public and wrap every admin screen in the shared session guard.
 import AdminRoute from "./AdminRoute.jsx";
 import AdminLoginPage from "./pages/AdminLoginPage.jsx";
+import AboutPage from "./pages/AboutPage.jsx";
+import AboutManagementPage from "./pages/AboutManagementPage.jsx";
 
 function Header() {
   return (
@@ -26,13 +28,17 @@ function Header() {
 
         <span className="brand-text">
           <strong>Desi Dawat</strong>
-          <small>Indian Vegetarian Kitchen · Oulu</small>
+          <small>Perinteinen intialainen perhekeittiö · Oulu<br />Traditional Indian Family Kitchen · Oulu</small>
         </span>
       </Link>
 
       <nav aria-label="Main navigation">
         <NavLink to="/" end>
           Menu
+        </NavLink>
+
+        <NavLink to="/about">
+          About Us
         </NavLink>
 
         <NavLink to="/admin">
@@ -54,6 +60,7 @@ export default function App() {
             path="/"
             element={<MenuPage />}
           />
+          <Route path="/about" element={<AboutPage />} />
 <Route
   path="/order-confirmation"
   element={<OrderConfirmation />}
@@ -65,12 +72,14 @@ export default function App() {
 {/* Every dashboard, legacy console, and admin section requires a valid server-verified admin session. */}
 <Route element={<AdminRoute />}>
   <Route path="/admin" element={<AdminDashboard />} />
+  <Route path="/admin/about" element={<AboutManagementPage />} />
   <Route path="/admin/console" element={<AdminPage />} />
   <Route path="/admin/time" element={<AdminSectionPage />} />
   <Route path="/admin/inventory" element={<AdminSectionPage />} />
   <Route path="/admin/flyers" element={<AdminSectionPage />} />
   <Route path="/admin/menu" element={<AdminSectionPage />} />
   <Route path="/admin/orders" element={<AdminSectionPage />} />
+  <Route path="/admin/customers" element={<AdminSectionPage />} />
   <Route path="/admin/reports" element={<AdminSectionPage />} />
 </Route>
 

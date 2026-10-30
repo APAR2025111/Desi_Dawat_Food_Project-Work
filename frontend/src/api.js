@@ -1,5 +1,39 @@
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:3001/api`;
+export const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? `${window.location.protocol}//${window.location.hostname}:3001/api`
+    : "/api");
+export const API_ORIGIN = new URL(API_BASE, window.location.origin).origin;
+
+// Resolve uploads served by the API, including legacy local URLs saved before deployment.
+export function resolveImageUrl(value, { driveThumbnailWidth = 600 } = {}) {
+  const imageUrl = String(value ?? "").trim();
+  if (!imageUrl) return "";
+  // Ask Google Drive for a screen-sized image thumbnail instead of downloading
+  // the full-resolution original into menu cards and flyers.
+  try {
+    const parsed = new URL(imageUrl, window.location.origin);
+    if (parsed.hostname === "drive.google.com") {
+      const fileId = parsed.pathname.match(/\/file\/d\/([^/]+)/)?.[1] || parsed.searchParams.get("id");
+      if (fileId) {
+        return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w${driveThumbnailWidth}`;
+      }
+    }
+  } catch {
+    // Keep unusual existing image references unchanged so the browser can report them normally.
+  }
+  if (imageUrl.startsWith("/uploads/")) return `${API_ORIGIN}${imageUrl}`;
+  try {
+    const parsed = new URL(imageUrl, window.location.origin);
+    if (["localhost", "127.0.0.1"].includes(parsed.hostname) && parsed.pathname.startsWith("/uploads/")) {
+      return `${API_ORIGIN}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+  } catch {
+    // Keep unusual existing image references unchanged so the browser can report them normally.
+  }
+  return imageUrl;
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -26,6 +60,8 @@ async function request(path, options = {}) {
 }
 
 export const getMenu = () => request("/menu");
+export const submitOrder = (order) =>
+  request("/orders", { method: "POST", body: JSON.stringify(order) });
 // Checkout delivery quote: let the backend apply the restaurant's distance and order-total rules.
 export const getDeliveryQuote = (deliveryAddress, foodSubtotal) =>
   request("/delivery-quote", {
@@ -61,6 +97,30 @@ export const deleteMenuItem = (token, id) =>
 
 export const getAdminOrders = (token) =>
   request("/admin/orders", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+export const getAdminCustomers = (token) =>
+  request("/admin/customers", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+export const addAdminCustomer = (token, customer) =>
+  request("/admin/customers", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(customer),
+  });
+
+export const archiveAdminCustomer = (token, customerId) =>
+  request(`/admin/customers/${customerId}/archive`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+export const restoreAdminCustomer = (token, customerId) =>
+  request(`/admin/customers/${customerId}/restore`, {
+    method: "PUT",
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -101,6 +161,40 @@ export const updateOrderDiscount = (token, orderId, discount_percent) =>
   });
 export const getOpeningHours = () =>
   request("/opening-hours");
+
+export const getAboutPage = () => request("/about");
+
+export const saveAboutPage = (token, content) =>
+  request("/admin/about", {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(content),
+  });
+
+export const uploadAboutMedia = async (token, file) => {
+  const form = new FormData();
+  form.append("media", file);
+  const response = await fetch(`${API_BASE}/admin/about/media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      sessionStorage.removeItem("desiDawatAdminToken");
+      window.dispatchEvent(new Event("desidawat-admin-session-invalid"));
+    }
+    throw new Error(data.error || `Upload failed (${response.status})`);
+  }
+  return data;
+};
+
+export const deleteAboutMedia = (token, mediaId) =>
+  request(`/admin/about/media/${mediaId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
 
 export const saveOpeningHours = (token, hours) =>
   request("/admin/opening-hours", {

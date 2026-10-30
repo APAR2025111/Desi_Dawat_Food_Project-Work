@@ -5,6 +5,12 @@ import { Link, useNavigate } from "react-router-dom";
 
 const sections = [
   {
+    title: "About Us Management",
+    description: "Edit your story and upload photos or videos",
+    icon: "â—†",
+    path: "/admin/about",
+  },
+  {
     title: "Time Management",
     description: "Opening hours and daily schedule",
     icon: "◷",
@@ -33,6 +39,12 @@ const sections = [
     description: "View and manage customer orders",
     icon: "▣",
     path: "/admin/orders",
+  },
+  {
+    title: "Customer Management",
+    description: "Customer profiles, order counts and lifetime value",
+    icon: "♙",
+    path: "/admin/customers",
   },
   {
     title: "Receipts & Reports",

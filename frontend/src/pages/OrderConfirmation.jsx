@@ -27,8 +27,8 @@ export default function OrderConfirmation() {
 
         <div className="confirmation-success">🎉 😊 ❤️</div>
         {/* Delivery review: make a manually quoted delivery charge clear to the customer. */}
-        <h1>{confirmation?.deliveryChargePendingManualReview ? "Your order is saved; delivery fee pending" : "Your order has been accepted!"}</h1>
-        <h2>{confirmation?.deliveryChargePendingManualReview ? "Tilaus tallennettu; toimitusmaksu vahvistetaan" : "Tilauksesi on hyväksytty!"}</h2>
+        <h1>{confirmation?.deliveryChargePendingManualReview ? "Your order is saved; delivery fee pending" : "Your order has been placed"}</h1>
+        <h2>{confirmation?.deliveryChargePendingManualReview ? "Tilaus tallennettu; toimitusmaksu vahvistetaan" : "Tilauksesi on vastaanotettu"}</h2>
 
         {confirmation?.deliveryChargePendingManualReview && (
           <p className="notice">We saved your order. The restaurant will verify the delivery address and confirm the delivery charge and final total before accepting it.<br /><em>Tallensimme tilauksesi. Ravintola tarkistaa toimitusosoitteen ja vahvistaa toimitusmaksun sekä loppusumman ennen tilauksen hyväksymistä.</em></p>
@@ -41,13 +41,9 @@ export default function OrderConfirmation() {
 
         {/* Confirmation update: reassure customers that we will share order progress. */}
         <p className="confirmation-update">
-          Pidämme sinut ajan tasalla tilauksesi etenemisestä.
+          Ravintola vahvistaa tilauksesi pian.
           <br />
-          <em>We will keep you updated about your order.</em>
-          <br />
-          Kuitti toimitetaan sinulle pian.
-          <br />
-          <em>We will share your receipt with you soon.</em>
+          <em>The restaurant will confirm your order shortly.</em>
         </p>
 
         <h3>Your order consists of:</h3>

@@ -120,6 +120,24 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
       return;
     }
 
+    const escapeFlyerText = (value) => String(value ?? "").replace(/[&<>\"]/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "\"": "&quot;",
+    })[character]);
+    const welcomeHoursMarkup = openingHours.map((day) => {
+      const periods = [];
+      if (!day.morning_closed && day.morning_open && day.morning_close) {
+        periods.push(`${String(day.morning_open).slice(0, 5)}–${String(day.morning_close).slice(0, 5)}`);
+      }
+      if (!day.evening_closed && day.evening_open && day.evening_close) {
+        periods.push(`${String(day.evening_open).slice(0, 5)}–${String(day.evening_close).slice(0, 5)}`);
+      }
+      const label = `${day.day_fi || day.day_key} / ${day.day_en || day.day_key}`;
+      return `<p>${escapeFlyerText(label)}: ${escapeFlyerText(periods.join(", ") || "Suljettu / Closed")}</p>`;
+    }).join("") || "<p>Aukioloajat eivät saatavilla / Opening hours unavailable</p>";
+
     flyerWindow.document.write(`
       <!DOCTYPE html>
       <html lang="en">
@@ -504,10 +522,7 @@ console.log("Dish name HTML:", name.innerHTML);
   <hr />
 
   <h2>🇫🇮 AUKIOLOAJAT / 🇬🇧 OPENING HOURS</h2>
-  <p>Ma–To / Mon–Thu: 19:00–22:00</p>
-  <p>Pe / Fri: 19:00–23:00</p>
-  <p>La / Sat: 11:00–14:00, 18:00–22:00</p>
-  <p>Su / Sun: 11:00–14:00, 18:00–21:00</p>
+  ${welcomeHoursMarkup}
 
   <hr />
 

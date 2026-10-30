@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { deleteMenuItem, getAdminMenu, saveMenuItem } from "../api.js";
+import { API_BASE, API_ORIGIN, deleteMenuItem, getAdminMenu, saveMenuItem, resolveImageUrl } from "../api.js";
 
 // Menu dashboard: provide the same item editing, availability, and removal actions as the full admin console.
 const emptyMenuItem = {
@@ -58,6 +58,10 @@ export default function MenuManagement({ token }) {
     ].some((value) => String(value || "").toLowerCase().includes(query)));
   }, [items, search]);
 
+  const mainCategories = useMemo(() => Array.from(new Set(
+    items.map((item) => String(item.main_category || "").trim()).filter(Boolean)
+  )).sort((first, second) => first.localeCompare(second)), [items]);
+
   function resetForm() {
     setEditingId(null);
     setForm(emptyMenuItem);
@@ -72,7 +76,7 @@ export default function MenuManagement({ token }) {
       quantity_serving: item.quantity_serving || "",
       price_eur: String(item.price_eur ?? ""),
       short_information: item.short_information || "",
-      image_url: item.image_url || "",
+      image_url: resolveImageUrl(item.image_url),
       is_available: isItemAvailable(item),
     });
     setError("");
@@ -133,20 +137,18 @@ export default function MenuManagement({ token }) {
   async function uploadImage(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-    const apiBase = import.meta.env.VITE_API_BASE_URL || `${window.location.protocol}//${window.location.hostname}:3001/api`;
-    const imageBase = apiBase.replace(/\/api\/?$/, "");
     const data = new FormData();
     data.append("image", file);
     setError("");
     try {
-      const response = await fetch(`${apiBase}/admin/upload`, {
+      const response = await fetch(`${API_BASE}/admin/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: data,
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Image upload failed.");
-      setForm((current) => ({ ...current, image_url: `${imageBase}${result.image_url}` }));
+      setForm((current) => ({ ...current, image_url: `${API_ORIGIN}${result.image_url}` }));
       setMessage("Food picture uploaded. Save the menu item to keep the image.");
     } catch (uploadError) {
       setError(uploadError.message || "Could not upload the food picture.");
@@ -171,7 +173,10 @@ export default function MenuManagement({ token }) {
             <input value={form.item_name} onChange={(event) => setForm({ ...form, item_name: event.target.value })} required maxLength="200" />
           </label>
           <label>Main category *
-            <input value={form.main_category} onChange={(event) => setForm({ ...form, main_category: event.target.value })} required maxLength="100" placeholder="e.g. Curries" />
+            <select value={form.main_category} onChange={(event) => setForm({ ...form, main_category: event.target.value })} required>
+              <option value="">Select a category</option>
+              {mainCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
           </label>
           <label>Subcategory
             <input value={form.subcategory} onChange={(event) => setForm({ ...form, subcategory: event.target.value })} maxLength="100" />
@@ -215,7 +220,7 @@ export default function MenuManagement({ token }) {
               {filteredItems.map((item) => {
                 const available = isItemAvailable(item);
                 return <tr key={item.item_id}>
-                  <td>{item.item_name || "—"}<small>{item.short_information || ""}</small>{item.image_url && <small>Food image added</small>}</td>
+                  <td><strong>{item.item_name || "—"}</strong><small>{item.short_information || ""}</small>{item.image_url && <small>Food image added</small>}</td>
                   <td>{item.main_category || "—"}<small>{item.subcategory || ""}</small></td>
                   <td>{item.quantity_serving || "—"}</td>
                   <td>€{Number(item.price_eur || 0).toFixed(2)}</td>
