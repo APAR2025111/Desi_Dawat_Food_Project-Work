@@ -6,3 +6,11 @@ export function getCustomerNoteForOrderPanel(notes) {
     .join("\n")
     .trim();
 }
+export function getCustomerNoteForReceipt(notes) {
+  return String(notes ?? "")
+    .split(/\r?\n/)
+    .filter((line) => !/^(ORDER REVIEW REQUIRED:|DELIVERY CHARGE PENDING MANUAL REVIEW)/i.test(line.trim()))
+    .join("\n")
+    .trim();
+}
+

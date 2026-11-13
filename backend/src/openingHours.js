@@ -68,7 +68,7 @@ export function getAvailableOrderTimeSlots(rows, now = new Date()) {
   return [...slots].sort();
 }
 
-export function getPreferredOrderDecision(rows, preferredTime, now = new Date()) {
+export function getPreferredOrderDecision(rows, preferredTime, now = new Date(), orderType = "takeaway") {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: HELSINKI_TIME_ZONE,
     weekday: "long",
@@ -99,6 +99,9 @@ export function getPreferredOrderDecision(rows, preferredTime, now = new Date())
     .map(({ open, close }) => ({ open: toMinutes(open), close: toMinutes(close) }))
     .filter((period) => period.open != null && period.close != null);
   const matchingPeriod = periods.find(({ open, close }) => {
+    if (orderType === "delivery") {
+      return selectedMinutes >= open && selectedMinutes <= close;
+    }
     const firstSlot = open + 30;
     const lastSlot = close + 60;
     return selectedMinutes >= firstSlot

@@ -31,7 +31,7 @@ export default function CustomerManagement({ token, mode = "active", compact = f
 
   const visibleCustomers = useMemo(() => customers
     .filter((customer) => Boolean(Number(customer.is_archived)) === (mode === "archived"))
-    .filter((customer) => `${customer.customer_name} ${customer.customer_phone} ${customer.email || ""}`.toLowerCase().includes(search.trim().toLowerCase())), [customers, mode, search]);
+    .filter((customer) => `${customer.customer_name} ${customer.customer_phone} ${customer.email || ""} ${customer.login_email || ""} ${customer.customer_id}`.toLowerCase().includes(search.trim().toLowerCase())), [customers, mode, search]);
 
   async function handleAdd(event) {
     event.preventDefault();
@@ -82,7 +82,7 @@ export default function CustomerManagement({ token, mode = "active", compact = f
           <div className="customer-management-heading">
             <div>
               <h2>Customer Management</h2>
-              <p>Customer profiles are matched by phone number. Order counts and lifetime value come from saved orders; cancelled orders are excluded.</p>
+              <p>Customer profiles are matched by phone number. Registered accounts show their customer ID and login email; other profiles are marked not registered. Order counts and lifetime value come from saved orders; cancelled orders are excluded.</p>
             </div>
             <button type="button" className="button button-outline" onClick={loadCustomers} disabled={loading}>Refresh</button>
           </div>
@@ -106,12 +106,17 @@ export default function CustomerManagement({ token, mode = "active", compact = f
       {loading ? <p>Loading customers...</p> : (
         <div className="table-wrap">
           <table className="admin-table customer-table">
-            <thead><tr><th>Customer</th><th>Contact</th><th>Orders</th><th>Lifetime value</th><th>Last order</th><th>Action</th></tr></thead>
+            <thead><tr><th>Customer</th><th>Contact</th><th>Account</th><th>Orders</th><th>Lifetime value</th><th>Last order</th><th>Action</th></tr></thead>
             <tbody>
               {visibleCustomers.map((customer) => (
                 <tr key={customer.customer_id}>
                   <td><strong>{customer.customer_name}</strong>{customer.delivery_address && <small>{customer.delivery_address}</small>}</td>
-                  <td>{customer.customer_phone}{customer.email && <small>{customer.email}</small>}</td>
+                  <td>{customer.customer_phone}{customer.email && <small>Contact email: {customer.email}</small>}</td>
+                  <td>
+                    {Boolean(Number(customer.is_registered))
+                      ? <><span className="status status-on">Registered</span><small>Customer ID: #{customer.customer_id}</small><small>Login email: {customer.login_email || customer.email || "—"}</small></>
+                      : <><span className="status status-off">Not registered</span><small>Customer ID: —</small><small>Login email: —</small></>}
+                  </td>
                   <td>{Number(customer.order_count || 0)}</td>
                   <td>{currency.format(Number(customer.total_spent || 0))}</td>
                   <td>{customer.last_order_at ? new Date(customer.last_order_at).toLocaleDateString("fi-FI") : "—"}</td>
@@ -120,7 +125,7 @@ export default function CustomerManagement({ token, mode = "active", compact = f
                     : <button type="button" className="button button-outline" onClick={() => archiveCustomer(customer)}>Archive</button>}</td>
                 </tr>
               ))}
-              {!visibleCustomers.length && <tr><td colSpan={6}>{mode === "archived" ? "No archived customers." : "No customers match this search."}</td></tr>}
+              {!visibleCustomers.length && <tr><td colSpan={7}>{mode === "archived" ? "No archived customers." : "No customers match this search."}</td></tr>}
             </tbody>
           </table>
         </div>

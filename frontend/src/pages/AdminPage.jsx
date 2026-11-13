@@ -5,7 +5,9 @@ import { useNavigate } from "react-router-dom";
 import Letterhead from "../components/Letterhead.jsx";
 // Inventory size: normalize older size labels and restrict newly saved values to gm/ml.
 import { isValidInventorySize, normalizeInventorySize } from "../utils/inventorySize.js";
-import { getCustomerNoteForOrderPanel } from "../utils/orderNotes.js";
+import { getCustomerNoteForOrderPanel, getCustomerNoteForReceipt } from "../utils/orderNotes.js";
+import { downloadReceiptFirstPageImage } from "../utils/receiptImage.js";
+import { formatBilingualMenuText, getBilingualMenuLines } from "../utils/bilingualMenuText.js";
 
 import {
   deleteMenuItem,
@@ -29,7 +31,7 @@ import {
 
 
 const blank = {
-  main_category: "", subcategory: "", item_name: "", quantity_serving: "1 serving",
+  display_code: "", main_category: "", subcategory: "", item_name: "", quantity_serving: "1 serving",
   price_eur: "", short_information: "", is_available: true,
 };
 
@@ -288,6 +290,14 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
   flex-shrink: 0;
 }
 
+.flyer-dish-number {
+  flex: 0 0 28px;
+  color: #087f8c;
+  font: 700 16px Arial, sans-serif;
+  text-align: right;
+  padding-top: 16px;
+}
+
 .flyer-dish-details {
   flex: 1;
   min-width: 0;
@@ -539,7 +549,6 @@ if (flyerFormat !== "welcome-message" && availableItems.length === 0) {
               if (!groups[category]) groups[category] = [];
               groups[category].push(item);
             });
-let dishNumber = 0;
             Object.entries(groups).forEach(([category, dishes]) => {
               const heading = document.createElement("h2");
               heading.textContent = category;
@@ -589,6 +598,10 @@ image.alt = imageFiles[imageName]
   : "Desi Dawat logo";
 
 image.className = "flyer-dish-image";
+const dishNumberLabel = document.createElement("span");
+dishNumberLabel.className = "flyer-dish-number";
+dishNumberLabel.textContent = dish.display_code ? dish.display_code + "." : "";
+row.appendChild(dishNumberLabel);
 row.appendChild(image);
 
                 
@@ -597,14 +610,14 @@ name.className = "flyer-dish-details";
 
 const dishName = document.createElement("div");
 dishName.className = "flyer-dish-name";
-dishNumber++;
-dishName.textContent = dishNumber + ". " + dish.item_name;
-console.log("Flyer number:", dishIndex + 1, dish.item_name);
+dishName.textContent = formatBilingualMenuText(dish.item_name);
+dishName.style.whiteSpace = "pre-line";
 dishName.style.display = "block";
 if (dish.short_information && dish.short_information.trim()) {
   const description = document.createElement("div");
   description.className = "flyer-dish-description";
-  description.textContent = dish.short_information;
+  description.textContent = formatBilingualMenuText(dish.short_information);
+  description.style.whiteSpace = "pre-line";
   name.appendChild(description);
 }
 name.prepend(dishName);
@@ -876,6 +889,7 @@ Delivery Charge saved for order #${order.order_id}.`);
   function beginEdit(item) {
     setEditingId(item.item_id);
     setForm({
+      display_code: item.display_code || "",
       main_category: item.main_category || "", subcategory: item.subcategory || "",
       item_name: item.item_name || "", quantity_serving: item.quantity_serving || "",
       price_eur: String(item.price_eur ?? ""), short_information: item.short_information || "",
@@ -1001,6 +1015,7 @@ Delivery Charge saved for order #${order.order_id}.`);
         <div className="panel-heading"><h2>{editingId ? `Edit item #${editingId}` : "Add a menu item"}</h2>{editingId && <button type="button" className="text-button" onClick={resetForm}>Cancel edit</button>}</div>
         <div className="form-grid">
           <label>Dish name *<input value={form.item_name} onChange={(e) => setForm({ ...form, item_name: e.target.value })} required maxLength="200" /></label>
+          <label>Menu item number<input value={form.display_code || ""} onChange={(e) => setForm({ ...form, display_code: e.target.value.replace(/\D/g, "") })} maxLength="9" pattern="[0-9]{1,9}" placeholder="Auto-assigned from 24 onward" /></label>
           <label>Main category *<input value={form.main_category} onChange={(e) => setForm({ ...form, main_category: e.target.value })} required maxLength="100" placeholder="e.g. Curries" /></label>
           <label>Subcategory<input value={form.subcategory} onChange={(e) => setForm({ ...form, subcategory: e.target.value })} maxLength="100" /></label>
           <label>Serving size<input value={form.quantity_serving} onChange={(e) => setForm({ ...form, quantity_serving: e.target.value })} maxLength="100" /></label>
@@ -1184,7 +1199,7 @@ onChange={(e) => {
   });
 }}
             />
-            {item.item_name} — €
+            {item.item_name}{item.display_code ? ` (${item.display_code})` : ""} — €
             {Number(item.price_eur).toFixed(2)}
           </label>
         ))}
@@ -1324,7 +1339,7 @@ disabled={flyerGenerating}
 </section>
 
 
-<section className="panel inventory-admin">
+<section className="panel inventory-admin" id="inventory-management">
   <div className="inventory-print-header">
   <Letterhead />
 
@@ -1808,7 +1823,7 @@ Delivery Charge (€)
           <tbody>{items.map((item) => {
             const visible = Boolean(Number(item.is_available));
             return <tr key={item.item_id}>
-              <td><strong>{item.item_name}</strong><small>#{item.item_id} · {item.quantity_serving || "Serving not set"}</small></td>
+              <td><strong>{getBilingualMenuLines(item.item_name).map((line, index) => <span key={index} style={{ display: "block" }}>{line}</span>)}</strong><small>Code {item.display_code || "—"} · Row #{item.item_id} · {item.quantity_serving || "Serving not set"}</small></td>
               <td>{item.main_category}<small>{item.subcategory || ""}</small></td>
               <td>€{Number(item.price_eur).toFixed(2)}</td>
               <td><span className={`status ${visible ? "status-on" : "status-off"}`}>{visible ? "Visible" : "Hidden"}</span><button className="text-button" onClick={() => toggleVisibility(item)}>{visible ? "Hide" : "Show"}</button></td>
@@ -1995,6 +2010,20 @@ Delivery Charge (€)
               <button
                 type="button"
                 className="button button-outline"
+                onClick={async () => {
+                  try {
+                    const receipt = document.querySelector(".receipt-overlay .receipt-paper");
+                    await downloadReceiptFirstPageImage(receipt, receiptOrder.receipt_number || receiptOrder.order_id);
+                  } catch (error) {
+                    alert(error.message || "Could not download the receipt image.");
+                  }
+                }}
+              >
+                Download first-page image
+              </button>
+              <button
+                type="button"
+                className="button button-outline"
                 onClick={() => setReceiptOrder(null)}
               >
                 Close
@@ -2046,11 +2075,16 @@ Order Receipt</h2>
     {receiptOrder.delivery_address}
   </p>
 )}
-              {receiptOrder.preferred_time && (
   <p>
     <strong>Toivottu {receiptOrder.order_type === "delivery" ? "toimitusaika" : "noutoaika"}</strong>
     <span className="receipt-english">Preferred {receiptOrder.order_type === "delivery" ? "delivery" : "pickup"} time</span>
-    {String(receiptOrder.preferred_time).slice(0, 5)}
+    {String(receiptOrder.preferred_time || "—").slice(0, 5)}
+  </p>
+              {getCustomerNoteForReceipt(receiptOrder.notes) && (
+  <p style={{ gridColumn: "1 / -1" }}>
+    <strong>Lisätiedot</strong>
+    <span className="receipt-english">Additional instructions</span>
+    <span style={{ whiteSpace: "pre-wrap" }}>{getCustomerNoteForReceipt(receiptOrder.notes)}</span>
   </p>
 )}
 

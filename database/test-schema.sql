@@ -5,6 +5,7 @@ USE desi_dawat_test;
 
 CREATE TABLE menu_items (
   item_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  display_code VARCHAR(24) NULL UNIQUE,
   main_category VARCHAR(100) NOT NULL,
   subcategory VARCHAR(100) NULL,
   item_name VARCHAR(200) NOT NULL,
@@ -33,6 +34,7 @@ CREATE TABLE opening_hours (
 
 CREATE TABLE customer_orders (
   order_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  customer_id BIGINT UNSIGNED NULL,
   customer_name VARCHAR(200) NOT NULL,
   customer_phone VARCHAR(50) NOT NULL,
   order_type ENUM('delivery','takeaway') NOT NULL,
@@ -46,7 +48,8 @@ CREATE TABLE customer_orders (
   delivery_distance_km DECIMAL(8,2) NULL,
   total_amount DECIMAL(10,2) NOT NULL,
   order_status VARCHAR(30) NOT NULL DEFAULT 'pending',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_customer_orders_customer_id (customer_id)
 );
 
 CREATE TABLE customers (
@@ -55,6 +58,12 @@ CREATE TABLE customers (
   customer_phone VARCHAR(50) NOT NULL,
   phone_normalized VARCHAR(50) NOT NULL,
   email VARCHAR(254) NULL,
+  login_email VARCHAR(254) NULL,
+  password_hash VARCHAR(255) NULL,
+  is_registered BOOLEAN NOT NULL DEFAULT FALSE,
+  signup_offer_used_at DATETIME NULL,
+  date_of_birth DATE NULL,
+  birthday_offer_used_year SMALLINT UNSIGNED NULL,
   delivery_address VARCHAR(500) NULL,
   is_archived BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -63,16 +72,78 @@ CREATE TABLE customers (
   INDEX idx_customers_archived_name (is_archived, customer_name)
 );
 
+ALTER TABLE customer_orders
+  ADD CONSTRAINT fk_customer_orders_customer
+  FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE SET NULL;
+
 CREATE TABLE customer_order_items (
   order_item_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   order_id INT NOT NULL,
   item_id INT NOT NULL,
-  item_name VARCHAR(200) NOT NULL,
+  item_name VARCHAR(255) NOT NULL,
   quantity INT NOT NULL,
   unit_price DECIMAL(10,2) NOT NULL,
   line_total DECIMAL(10,2) NOT NULL,
   CONSTRAINT fk_test_order_item_order FOREIGN KEY (order_id)
     REFERENCES customer_orders(order_id) ON DELETE CASCADE
+);
+
+CREATE TABLE surprise_reward_state (
+  state_id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+  qualifying_order_count BIGINT UNSIGNED NOT NULL DEFAULT 0
+);
+INSERT INTO surprise_reward_state (state_id, qualifying_order_count) VALUES (1, 0);
+
+CREATE TABLE surprise_reward_settings (
+  settings_id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+  validity_days SMALLINT UNSIGNED NOT NULL DEFAULT 15,
+  cycle_config JSON NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+INSERT INTO surprise_reward_settings (settings_id, validity_days, cycle_config)
+VALUES (1, 15, JSON_ARRAY(
+  JSON_OBJECT('type','percent','min',1,'max',5),
+  JSON_OBJECT('type','percent','min',1,'max',5),
+  JSON_OBJECT('type','percent','min',1,'max',5),
+  JSON_OBJECT('type','percent','min',1,'max',5),
+  JSON_OBJECT('type','percent','min',1,'max',5),
+  JSON_OBJECT('type','addon'), JSON_OBJECT('type','addon'), JSON_OBJECT('type','addon'),
+  JSON_OBJECT('type','addon'), JSON_OBJECT('type','addon'), JSON_OBJECT('type','addon'),
+  JSON_OBJECT('type','percent','min',6,'max',8),
+  JSON_OBJECT('type','percent','min',6,'max',8),
+  JSON_OBJECT('type','percent','min',6,'max',8),
+  JSON_OBJECT('type','percent','min',9,'max',10)
+));
+
+CREATE TABLE surprise_reward_addon_items (
+  item_id INT NOT NULL PRIMARY KEY,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_test_surprise_addon_item FOREIGN KEY (item_id)
+    REFERENCES menu_items(item_id) ON DELETE CASCADE
+);
+
+CREATE TABLE customer_surprise_rewards (
+  reward_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  sequence_position TINYINT UNSIGNED NOT NULL,
+  customer_id BIGINT UNSIGNED NOT NULL,
+  qualifying_order_id INT NOT NULL,
+  reward_type ENUM('percent','addon') NOT NULL,
+  reward_value DECIMAL(5,2) NULL,
+  addon_item_id INT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME NOT NULL,
+  redeemed_at DATETIME NULL,
+  redemption_order_id INT NULL,
+  UNIQUE KEY uq_test_customer_surprise_order (qualifying_order_id),
+  INDEX idx_test_customer_surprise_available (customer_id, expires_at, redeemed_at),
+  CONSTRAINT fk_test_surprise_customer FOREIGN KEY (customer_id)
+    REFERENCES customers(customer_id) ON DELETE CASCADE,
+  CONSTRAINT fk_test_surprise_qualifying_order FOREIGN KEY (qualifying_order_id)
+    REFERENCES customer_orders(order_id) ON DELETE CASCADE,
+  CONSTRAINT fk_test_surprise_addon FOREIGN KEY (addon_item_id)
+    REFERENCES menu_items(item_id) ON DELETE SET NULL,
+  CONSTRAINT fk_test_surprise_redemption_order FOREIGN KEY (redemption_order_id)
+    REFERENCES customer_orders(order_id) ON DELETE SET NULL
 );
 
 CREATE TABLE inventory_items (
@@ -108,6 +179,23 @@ CREATE TABLE about_page_media (
   sort_order INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_about_page_media_order (sort_order, media_id)
+);
+
+CREATE TABLE business_documents (
+  document_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  document_type VARCHAR(100) NOT NULL,
+  notes VARCHAR(2000) NULL,
+  original_filename VARCHAR(255) NOT NULL,
+  storage_key VARCHAR(100) NULL,
+  mime_type VARCHAR(150) NOT NULL,
+  source ENUM('uploaded', 'ai_draft') NOT NULL,
+  content_text LONGTEXT NULL,
+  ai_model VARCHAR(200) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_business_documents_updated (updated_at, document_id),
+  INDEX idx_business_documents_type (document_type)
 );
 
 INSERT INTO about_page_content (content_id, title, description)

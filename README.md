@@ -68,6 +68,25 @@ Open the URL Vite prints, normally `http://localhost:5173`.
 - Admin page: `http://localhost:5173/admin`
 - Sign in using `ADMIN_USERNAME` and `ADMIN_PASSWORD` from `backend/.env`.
 
+## Business documents and local AI drafts
+
+- Apply `database/migrations/009_add_business_documents.sql` to the local `desi_dawat_menu` database before opening Admin → Document Management.
+- Uploaded PDF, Word, OpenDocument, and plain-text files are stored in `backend/private-documents` by default. This directory is not exposed through the public `/uploads` route. Back it up with the database. For deployment, set `DOCUMENT_STORAGE_DIR` to durable private storage.
+- The local AI draft form connects from the backend to Ollama at `http://127.0.0.1:11434`. Start Ollama and install at least one model locally. Set `OLLAMA_BASE_URL` only to a loopback address. The API rejects non-local hosts.
+- Only the title, business context, and drafting instructions entered in the form are sent to Ollama. Uploaded document contents are not submitted to the model.
+
+## Menu item codes
+
+- Apply `database/migrations/010_add_menu_display_codes.sql` and then `database/migrations/011_randomize_menu_item_numbers.sql` to the local `desi_dawat_menu` database. The printed numbers 1–23 are retained; remaining dishes are randomly ordered and assigned consecutive numbers from 24 onward.
+- Apply `database/migrations/019_expand_order_item_name.sql` to allow long bilingual dish names plus their menu numbers in saved orders.
+- Admins can edit item numbers in Menu Management. Leave the field blank for a new dish to receive the next consecutive number.
+- Generated drafts are editable and saved as plain-text documents. Review factual, operational, and regulatory details before using a draft.
+
+## Registered-customer surprise rewards
+
+- Apply `database/migrations/018_add_surprise_rewards.sql` to the local `desi_dawat_menu` database before using surprise rewards.
+- Configure the 15-position reward cycle, free add-on dish pool, and coupon validity in Admin → Rewards Management. Each signed-in order with a food subtotal over €30 advances the shared cycle; guests do not advance it. Coupons can be selected at checkout and expire after the validity period set by the admin (15 days by default).
+
 The public menu shows only rows where `is_available = 1`.
 The admin can add, edit, show/hide, and delete items. Changes are stored in MySQL.
 

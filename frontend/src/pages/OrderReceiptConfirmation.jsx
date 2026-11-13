@@ -24,7 +24,7 @@ function receiptDocument(confirmation, orderNumber, items) {
     : "Nouto / Takeaway";
   const lines = items.map((item) => `
     <tr>
-      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(item.name)}${item.displayCode ? ` (${escapeHtml(item.displayCode)})` : ""}</td>
       <td>${escapeHtml(item.quantity)}</td>
       <td>${money(item.unitPrice)}</td>
       <td>${money(item.lineTotal)}</td>
@@ -49,6 +49,7 @@ function receiptDocument(confirmation, orderNumber, items) {
 <section class="details"><p><strong>Päivämäärä / Date:</strong> ${escapeHtml(dateText)}</p><p><strong>Asiakas / Customer:</strong> ${escapeHtml(confirmation?.customerName || "—")}</p><p><strong>Puhelin / Phone:</strong> ${escapeHtml(confirmation?.customerPhone || "—")}</p><p><strong>Tilaustapa / Order type:</strong> ${orderType}</p>${addressRow}${preferredTimeRow}${notesRow}</section>
 <h2>Tuotteet / Items</h2><table><thead><tr><th>Tuote / Item</th><th>Määrä / Qty</th><th>Hinta / Price</th><th>Yhteensä / Total</th></tr></thead><tbody>${lines}</tbody></table>
 <p>Ruokien välisummaa / Food subtotal: <strong>${money(confirmation?.subtotal)}</strong></p>
+${Number(confirmation?.discountAmount) > 0 ? `<p>Alennus / Discount: <strong>−${money(confirmation.discountAmount)}</strong></p>` : ""}
 <p>Toimitusmaksu / Delivery charge: <strong>${deliveryCharge}</strong></p>
 <div class="total"><span>YHTEENSÄ / TOTAL</span><span>${money(total)}</span></div>
 <p>Kiitos tilauksestasi! / Thank you for your order!</p></body></html>`;
@@ -79,8 +80,8 @@ export default function OrderReceiptConfirmation() {
       <section className="order-confirmation-card">
         <img src="/images/LOGO.jpeg" alt="Desi Dawat logo" className="confirmation-logo" />
         <div className="confirmation-success" aria-hidden="true">🎉 😊 ❤️</div>
-        <h1>{isPending ? "Order request received — awaiting confirmation" : isUnverified ? "Order status unavailable" : confirmation?.deliveryChargePendingManualReview ? "Your order is accepted; delivery fee pending" : "Your order has been placed and accepted"}</h1>
-        <h2>{isPending ? "Tilauspyyntö vastaanotettu — odottaa vahvistusta" : isUnverified ? "Tilauksen tila ei ole saatavilla" : confirmation?.deliveryChargePendingManualReview ? "Tilauksesi on hyväksytty; toimitusmaksu vahvistetaan" : "Tilauksesi on tehty ja hyväksytty"}</h2>
+        <h1>{isPending ? "Order request received — awaiting confirmation" : isUnverified ? "Order status unavailable" : confirmation?.deliveryChargePendingManualReview ? "Your order is accepted" : "Your order has been placed and accepted"}</h1>
+        <h2>{isPending ? "Tilauspyyntö vastaanotettu — odottaa vahvistusta" : isUnverified ? "Tilauksen tila ei ole saatavilla" : confirmation?.deliveryChargePendingManualReview ? "Tilauksesi on hyväksytty" : "Tilauksesi on tehty ja hyväksytty"}</h2>
 
         {isPending && (
           <p className="notice" role="status">
@@ -91,16 +92,13 @@ export default function OrderReceiptConfirmation() {
           <p className="notice" role="status">Vahvistusta ei voitu ladata. Ota yhteyttä ravintolaan ennen kuin oletat tilauksen olevan hyväksytty.<br /><em>We could not load the order confirmation. Please contact the restaurant before assuming the order was accepted.</em></p>
         )}
 
-        {confirmation?.deliveryChargePendingManualReview && (
-          <p className="notice">Your order is accepted. The restaurant will verify the delivery address and confirm the delivery charge and final total.<br /><em>Tilauksesi on hyväksytty. Ravintola tarkistaa toimitusosoitteen ja vahvistaa toimitusmaksun sekä loppusumman.</em></p>
-        )}
         {isAccepted && orderId && <p className="confirmation-order-number">Tilausnumero / Order number: <strong>#{orderNumber}</strong></p>}
         {confirmation?.preferredTime && <p className="confirmation-order-number">{confirmation.orderType === "delivery" ? "Toivottu toimitusaika / Preferred delivery time" : "Toivottu noutoaika / Preferred pickup time"}: <strong>{confirmation.preferredTime}</strong></p>}
 
         <p className="confirmation-update">
-          Päivitämme sinulle tilauksesi tilanteesta pian ja voimme ottaa sinuun yhteyttä, jos tilauksen tiedot tarvitsevat vahvistusta.
-          <br />
-          <em>We will update you about your order soon and may contact you if any order details need confirmation.</em>
+          {isAccepted && confirmation?.orderType === "delivery"
+            ? <>Vahvistettu toimitusaika voi vaihdella tilausjonon mukaan. Jos aika muuttuu, ilmoitamme siitä ennen ruoan valmistamista. Jos uusi aika ei sovi, voit peruuttaa tilauksesi.<br /><em>The confirmed delivery time may vary depending on the order queue. If it changes, we’ll let you know before preparing your order. If the new time doesn’t suit you, you may cancel your order.</em></>
+            : <>Päivitämme sinulle tilauksesi tilanteesta pian ja voimme ottaa sinuun yhteyttä, jos tilauksen tiedot tarvitsevat vahvistusta.<br /><em>We will update you about your order soon and may contact you if any order details need confirmation.</em></>}
         </p>
         <p className="confirmation-whatsapp-contact">
           Kysyttävää? Lähetä meille viesti WhatsAppissa.
@@ -114,7 +112,7 @@ export default function OrderReceiptConfirmation() {
           <ol className="confirmation-items">
             {items.map((item, index) => (
               <li key={`${item.name}-${index}`}>
-                <span>{item.name} × {item.quantity}</span>
+                <span>{item.name}{item.displayCode ? ` (${item.displayCode})` : ""} × {item.quantity}</span>
                 {Number.isFinite(Number(item.lineTotal)) && <strong>{euro.format(Number(item.lineTotal))}</strong>}
               </li>
             ))}
@@ -126,17 +124,18 @@ export default function OrderReceiptConfirmation() {
         {hasSubtotal && (
           <div className="confirmation-receipt-summary">
             <p><span>Ruokien välisummaa / Food subtotal</span><strong>{euro.format(Number(confirmation.subtotal))}</strong></p>
-            <p><span>Toimitusmaksu / Delivery charge</span><strong>{confirmation.deliveryChargePendingManualReview ? "Vahvistetaan / Pending" : euro.format(Number(confirmation.deliveryCharge || 0))}</strong></p>
+            {Number(confirmation.discountAmount) > 0 && (
+              <p><span>Alennus / Discount</span><strong>−{euro.format(confirmation.discountAmount)}</strong></p>
+            )}
+            <p><span>Toimitusmaksu / Delivery charge</span><strong>{confirmation.deliveryChargePendingManualReview ? "Soveltuvan mukaan / As applicable" : euro.format(Number(confirmation.deliveryCharge || 0))}</strong></p>
             <p className="confirmation-total"><span>Yhteensä / Total</span><strong>{euro.format(Number(total))}</strong></p>
           </div>
         )}
 
         <div className="confirmation-message">
           <h3>Maksaminen / Payment</h3>
-          <p>Tilaustasi koskeva kuitti lähetetään, kun tilauksesi on valmis.<br /><em>We will share your order receipt once your order is completed.</em></p>
-          <p>{isPending || isUnverified
-            ? <>Odota ravintolan vahvistusta ennen maksamista.<br /><em>Please wait for the restaurant’s confirmation and receipt before paying.</em></>
-            : <>Voit maksaa millä tahansa kuitissa mainituista maksutavoista.<br /><em>You may pay using any of the payment methods listed on your receipt.</em></>}</p>
+          <p>Jaamme kuitin ja maksutiedot, kun ruoka on toimitettu.<br />Voit maksaa MobilePaylla, tilisiirrolla tai käteisellä — miten sinulle parhaiten sopii.</p>
+          <p><em>We’ll share your receipt and payment details after your food is delivered.<br />You can pay by MobilePay, bank transfer, or cash — whichever suits you.</em></p>
         </div>
 
         <p className="confirmation-thanks">Kiitos tilauksestasi! / Thank you for choosing Desi Dawat! ❤️</p>

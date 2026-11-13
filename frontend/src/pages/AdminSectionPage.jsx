@@ -16,11 +16,11 @@ import {
 import FlyerManagement from "./FlyerManagement.jsx";
 // Menu page: use the dedicated item manager on the dashboard route.
 import MenuManagement from "./MenuManagement.jsx";
-// Orders page: connect the dashboard route to its dedicated order tools.
-import OrdersManagement from "./OrdersManagement.jsx";
 import CustomerManagement from "./CustomerManagement.jsx";
 // Reports page: connect dashboard receipts and reports to their dedicated view.
 import ReportsManagement from "./ReportsManagement.jsx";
+import DocumentsManagement from "./DocumentsManagement.jsx";
+import RewardsManagement from "./RewardsManagement.jsx";
 
 
 const sectionDetails = {
@@ -40,9 +40,9 @@ const sectionDetails = {
     title: "Menu Management",
     description: "Manage menu items, prices, photos and availability.",
   },
-  "/admin/orders": {
-    title: "Order Management",
-    description: "View and manage customer orders.",
+  "/admin/rewards": {
+    title: "Rewards Management",
+    description: "Configure surprise reward cycles, free add-on choices and coupon validity.",
   },
   "/admin/customers": {
     title: "Customer Management",
@@ -51,6 +51,10 @@ const sectionDetails = {
   "/admin/reports": {
     title: "Receipts & Reports",
     description: "Print receipts and view business reports.",
+  },
+  "/admin/documents": {
+    title: "Document Management",
+    description: "Store business records and create editable drafts with a local AI model.",
   },
 };
 
@@ -68,6 +72,41 @@ export default function AdminSectionPage() {
 const [inventoryLoading, setInventoryLoading] = useState(false);
 const [inventoryError, setInventoryError] = useState("");
 const [inventoryMessage, setInventoryMessage] = useState("");
+const [editingInventoryId, setEditingInventoryId] = useState(null);
+const [editingInventory, setEditingInventory] = useState(null);
+
+async function saveInventoryEdit(event) {
+  event.preventDefault();
+  setInventoryError("");
+  setInventoryMessage("");
+  try {
+    if (editingInventoryId) {
+      await updateInventoryItem(token, editingInventoryId, editingInventory);
+    } else {
+      await addInventoryItem(token, editingInventory);
+    }
+    const data = await getAdminInventory(token);
+    setInventoryItems(Array.isArray(data) ? data : data?.items || []);
+    setEditingInventoryId(null);
+    setEditingInventory(null);
+      setInventoryMessage(editingInventoryId ? "Inventory item updated." : "Inventory item added.");
+  } catch (error) {
+    setInventoryError(error.message || "Could not update inventory item.");
+  }
+}
+
+async function removeInventoryItem(item) {
+  if (!window.confirm(`Delete ${item.item_name_en || item.item_name || "this item"} from inventory?`)) return;
+  setInventoryError("");
+  setInventoryMessage("");
+  try {
+    await deleteInventoryItem(token, item.item_id);
+    setInventoryItems((items) => items.filter((entry) => entry.item_id !== item.item_id));
+    setInventoryMessage("Inventory item deleted.");
+  } catch (error) {
+    setInventoryError(error.message || "Could not delete inventory item.");
+  }
+}
 
 
   const token =
@@ -231,7 +270,7 @@ useEffect(() => {
   }
 
   return (
-    <section className="admin-dashboard">
+    <section className={`admin-dashboard${["/admin/reports", "/admin/inventory", "/admin/flyers", "/admin/rewards"].includes(location.pathname) ? " admin-dashboard-wide" : ""}${location.pathname === "/admin/inventory" ? " inventory-dashboard" : ""}`}>
       <div className="admin-dashboard-card">
         <h1>{section.title}</h1>
         <p>{section.description}</p>
@@ -392,6 +431,28 @@ useEffect(() => {
     >
       Print Inventory Report / Tulosta varastoraportti
     </button>
+    <button type="button" className="button button-primary inventory-add-trigger" onClick={() => {
+      setEditingInventoryId(null);
+      setEditingInventory({ item_category: "packing_material", item_name: "", item_size: "", quantity: "", unit: "pieces", rack_number: "", expiry_date: "", availability: "available", notes: "" });
+    }}>+ Add inventory item</button>
+    {editingInventory && (
+      <div className="inventory-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setEditingInventoryId(null); setEditingInventory(null); } }}>
+      <form className="inventory-inline-edit" onSubmit={saveInventoryEdit}>
+        <h3>{editingInventoryId ? "Edit inventory item" : "Add inventory item"}</h3>
+        <label>Category<select value={editingInventory.item_category || "packing_material"} onChange={(event) => setEditingInventory({ ...editingInventory, item_category: event.target.value })}><option value="packing_material">Packing materials</option><option value="food_item">Food items</option></select></label>
+        <label>Item name<input required value={editingInventory.item_name} onChange={(event) => setEditingInventory({ ...editingInventory, item_name: event.target.value })} /></label>
+        <label>Size (gm or ml)<input value={editingInventory.item_size} onChange={(event) => setEditingInventory({ ...editingInventory, item_size: event.target.value })} /></label>
+        <label>Quantity<input type="number" min="0" step="any" value={editingInventory.quantity} onChange={(event) => setEditingInventory({ ...editingInventory, quantity: event.target.value })} /></label>
+        <label>Unit<input value={editingInventory.unit} onChange={(event) => setEditingInventory({ ...editingInventory, unit: event.target.value })} /></label>
+        <label>Expiry date<input type="date" value={editingInventory.expiry_date} onChange={(event) => setEditingInventory({ ...editingInventory, expiry_date: event.target.value })} /></label>
+        <label>Rack number<input value={editingInventory.rack_number} onChange={(event) => setEditingInventory({ ...editingInventory, rack_number: event.target.value })} /></label>
+        <label>Availability<select value={editingInventory.availability} onChange={(event) => setEditingInventory({ ...editingInventory, availability: event.target.value })}><option>Available</option><option>Low stock</option><option>Unavailable</option></select></label>
+        <label>Notes<textarea value={editingInventory.notes} onChange={(event) => setEditingInventory({ ...editingInventory, notes: event.target.value })} /></label>
+        <button type="submit" className="button button-primary">{editingInventoryId ? "Save changes" : "Add item"}</button>
+        <button type="button" onClick={() => { setEditingInventoryId(null); setEditingInventory(null); }}>Cancel</button>
+      </form>
+      </div>
+    )}
 
     {inventoryLoading && <p>Loading inventory...</p>}
 
@@ -424,12 +485,13 @@ useEffect(() => {
                 <th>Unit</th>
                 <th>Expiry date</th>
                 <th>Availability</th>
+                <th>Actions</th>
               </tr>
             </thead>
 
             <tbody>
               {inventoryItems.map((item) => (
-                <tr key={item.id}>
+                  <tr key={item.item_id}>
                   <td>
                     {item.item_name_en ||
                       item.item_name ||
@@ -455,12 +517,29 @@ useEffect(() => {
 </td>
 
                   <td>{item.availability || "Not specified"}</td>
+                  <td className="inventory-row-actions">
+                    <button type="button" onClick={() => {
+                      setEditingInventoryId(item.item_id);
+                      setEditingInventory({
+                        ...item,
+                        item_name: item.item_name_en || item.item_name || item.item_name_fi || "",
+                        item_size: item.item_size || "",
+                        quantity: item.quantity ?? "",
+                        unit: item.unit || "pieces",
+                        rack_number: item.rack_number || "",
+                        expiry_date: item.expiry_date ? String(item.expiry_date).slice(0, 10) : "",
+                        availability: item.availability || "Available",
+                        notes: item.notes || "",
+                      });
+                    }}>Edit</button>
+                    <button type="button" onClick={() => removeInventoryItem(item)}>Delete</button>
+                  </td>
                 </tr>
               ))}
 
               {inventoryItems.length === 0 && (
                 <tr>
-                  <td colSpan={7}>No inventory items found.</td>
+                  <td colSpan={8}>No inventory items found.</td>
                 </tr>
               )}
             </tbody>
@@ -471,14 +550,16 @@ useEffect(() => {
   </div>
 ) : location.pathname === "/admin/reports" ? (
   <ReportsManagement token={token} />
-) : location.pathname === "/admin/orders" ? (
-  <OrdersManagement token={token} />
 ) : location.pathname === "/admin/customers" ? (
   <CustomerManagement token={token} />
 ) : location.pathname === "/admin/menu" ? (
   <MenuManagement token={token} />
+) : location.pathname === "/admin/rewards" ? (
+  <RewardsManagement token={token} />
 ) : location.pathname === "/admin/flyers" ? (
   <FlyerManagement token={token} />
+) : location.pathname === "/admin/documents" ? (
+  <DocumentsManagement token={token} />
 ) : (
   <p>This section is ready for its management features.</p>
 )}

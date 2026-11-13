@@ -1,11 +1,28 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { getMenu, getOpeningHours, getDeliveryQuote, submitOrder, resolveImageUrl } from "../api.js";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { getMenu, getOpeningHours, getDeliveryQuote, getCustomerSession, getCustomerSurpriseRewards, submitOrder, resolveImageUrl } from "../api.js";
 import { validateCheckoutDetails } from "../utils/checkoutValidation.js";
 import { getPreferredTimeSlots } from "../utils/preferredTime.js";
+import { getBilingualMenuLines } from "../utils/bilingualMenuText.js";
+import { getSelectedCustomerRewardId, saveSelectedCustomerRewardId } from "../utils/customerRewardSelection.js";
+import { useCustomerAccount } from "../CustomerAccount.jsx";
 const euro = new Intl.NumberFormat("fi-FI", {
   style: "currency",
   currency: "EUR",
 });
+
+const menuAllergenCodes = [
+  ["A1", "Gluteenia sisältävät viljat / Cereals containing gluten"],
+  ["A2", "Maapähkinät ja maapähkinätuotteet / Peanuts and peanut products"],
+  ["A3", "Soijapavut ja soijapaputuotteet / Soybeans and soybean products"],
+  ["A4", "Maito ja maitotuotteet (laktoosi mukaan lukien) / Milk and milk products (including lactose)"],
+  ["A5", "Pähkinät ja pähkinätuotteet / Nuts and nut products"],
+  ["A6", "Sinappi ja sinappituotteet / Mustard and mustard products"],
+  ["A7", "Selleri ja sellerituotteet / Celery and celery products"],
+  ["A8", "Seesaminsiemenet ja seesaminsiementuotteet / Sesame seeds and sesame seed products"],
+  ["A9", "Rikkidioksidi ja sulfiitit (yli 10 mg/kg tai 10 mg/l kokonaisrikkidioksidina) / Sulphur dioxide and sulphites (above 10 mg/kg or 10 mg/l as total sulphur dioxide)"],
+  ["A10", "Lupiinit ja lupiinituotteet / Lupin and lupin products"],
+];
 const foodImages = {
   "bread pakoda": "Bread Pakoda.webp",
   "chilli paneer": "Chilli Paneer.webp",
@@ -58,6 +75,51 @@ function getTodayOpeningHours(hours) {
   return hours.find((day) => day.day_key === dayKey);
 }
 
+function getDeliveryTimeRanges(day) {
+  if (!day) return [];
+  return [
+    { open: day.morning_open, close: day.morning_close, closed: day.morning_closed },
+    { open: day.evening_open, close: day.evening_close, closed: day.evening_closed },
+  ].flatMap(({ open, close, closed }) => {
+    if (closed === true || Number(closed) === 1 || !open || !close) return [];
+    const start = parseClockMinutes(open);
+    const end = parseClockMinutes(close);
+    return start == null || end == null || end < start ? [] : [{ start, end }];
+  });
+}
+
+function parseClockMinutes(value) {
+  const match = String(value ?? "").match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour > 23 || minute > 59 ? null : hour * 60 + minute;
+}
+
+function getDeliveryHours(ranges) {
+  const hours = new Set();
+  ranges.forEach(({ start, end }) => {
+    for (let hour = Math.floor(start / 60); hour <= Math.floor(end / 60); hour += 1) hours.add(hour);
+  });
+  return [...hours].sort((first, second) => first - second);
+}
+
+function getMinutesForDeliveryHour(hour, ranges) {
+  const hourStart = hour * 60;
+  const minutes = new Set();
+  ranges.forEach(({ start, end }) => {
+    const first = Math.max(start, hourStart);
+    const last = Math.min(end, hourStart + 59);
+    for (let value = first; value <= last; value += 1) minutes.add(value % 60);
+  });
+  return [...minutes].sort((first, second) => first - second);
+}
+
+function isTimeWithinDeliveryHours(time, ranges) {
+  const minutes = parseClockMinutes(time);
+  return minutes != null && ranges.some(({ start, end }) => minutes >= start && minutes <= end);
+}
+
 function buildOpeningHoursRows(hours) {
   const groups = [
     { keys: ["mon_thu", "fri"], fi: "Maanantai–perjantai", en: "Monday–Friday" },
@@ -95,10 +157,21 @@ function buildOpeningHoursRows(hours) {
 }
 
 export default function MenuPage() {
+  const { state } = useLocation();
+  const { customer: signedInCustomer } = useCustomerAccount();
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
-  const [cart, setCart] = useState([]);
+  const [category, setCategory] = useState(null);
+  const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [detailsItem, setDetailsItem] = useState(null);
+  const [cart, setCart] = useState(() => {
+    try {
+      const savedCart = JSON.parse(sessionStorage.getItem("desiDawatCart") || "[]");
+      return Array.isArray(savedCart) ? savedCart : [];
+    } catch {
+      return [];
+    }
+  });
   // Checkout form state
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
@@ -107,12 +180,27 @@ export default function MenuPage() {
   const [paymentMethod, setPaymentMethod] = useState("pay_on_delivery");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
+  const [deliveryTimePickerOpen, setDeliveryTimePickerOpen] = useState(false);
+  const [deliveryTimePickerStep, setDeliveryTimePickerStep] = useState("hour");
+  const [draftDeliveryHour, setDraftDeliveryHour] = useState(19);
+  const [draftDeliveryMinute, setDraftDeliveryMinute] = useState(0);
+  const [manualDeliveryHour, setManualDeliveryHour] = useState("19");
+  const [manualDeliveryMinute, setManualDeliveryMinute] = useState("00");
   const [customerNotes, setCustomerNotes] = useState("");
   const [checkoutError, setCheckoutError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isReviewingOrder, setIsReviewingOrder] = useState(false);
-  const [isPaymentStep, setIsPaymentStep] = useState(false);
+  const [checkoutOffer, setCheckoutOffer] = useState(null);
+  const [selectedSurpriseRewardId, setSelectedSurpriseRewardId] = useState("");
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const customerToken = state?.checkoutAsGuest ? null : sessionStorage.getItem("desiDawatCustomerToken");
+  useEffect(() => {
+    if (!customerToken || !signedInCustomer) return;
+    setCustomerName((current) => current.trim() ? current : signedInCustomer.customer_name || "");
+    setCustomerPhone((current) => current.trim() ? current : signedInCustomer.customer_phone || "");
+    setDeliveryAddress((current) => current.trim() ? current : signedInCustomer.delivery_address || "");
+  }, [customerToken, signedInCustomer]);
   // Delivery estimate state for the customer order-review screen.
   const [deliveryQuote, setDeliveryQuote] = useState(null);
   // Track which address and subtotal produced the current quote so checkout can reuse it.
@@ -123,9 +211,73 @@ export default function MenuPage() {
   const [manualDeliveryReview, setManualDeliveryReview] = useState(false);
   const [openingHours, setOpeningHours] = useState([]);
   const [hoursLoading, setHoursLoading] = useState(true);
+  const hasInitializedDeliveryTime = useRef(false);
   const openingHoursRows = useMemo(() => buildOpeningHoursRows(openingHours), [openingHours]);
   const todayOpeningHours = useMemo(() => getTodayOpeningHours(openingHours), [openingHours]);
   const preferredTimeSlots = useMemo(() => getPreferredTimeSlots(todayOpeningHours), [todayOpeningHours]);
+  const deliveryTimeRanges = useMemo(() => getDeliveryTimeRanges(todayOpeningHours), [todayOpeningHours]);
+  const deliveryHours = useMemo(() => getDeliveryHours(deliveryTimeRanges), [deliveryTimeRanges]);
+  const manualHourValue = deliveryHours.includes(Number(manualDeliveryHour))
+    ? manualDeliveryHour
+    : String(deliveryHours[0] ?? "");
+  const minuteDialRef = useRef(null);
+  const isPreferredTimeValid = (time) => orderType === "delivery"
+    ? /^\d{2}:\d{2}$/.test(time) && isTimeWithinDeliveryHours(time, deliveryTimeRanges)
+    : preferredTimeSlots.includes(time);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("desiDawatCart", JSON.stringify(cart));
+    } catch {
+      // The cart remains usable even when browser storage is unavailable.
+    }
+  }, [cart]);
+  useEffect(() => {
+    if (orderType !== "delivery" || hoursLoading || hasInitializedDeliveryTime.current || !deliveryHours.length) return;
+
+    const initialHour = deliveryHours.includes(Number(manualDeliveryHour))
+      ? Number(manualDeliveryHour)
+      : deliveryHours[0];
+    const availableMinutes = getMinutesForDeliveryHour(initialHour, deliveryTimeRanges);
+    const initialMinute = availableMinutes.includes(0) ? 0 : availableMinutes[0];
+    if (initialMinute == null) return;
+
+    const hour = String(initialHour).padStart(2, "0");
+    const minute = String(initialMinute).padStart(2, "0");
+    setManualDeliveryHour(hour);
+    setManualDeliveryMinute(minute);
+    setPreferredTime(`${hour}:${minute}`);
+    hasInitializedDeliveryTime.current = true;
+  }, [deliveryHours, deliveryTimeRanges, hoursLoading, manualDeliveryHour, orderType]);
+  function openDeliveryTimePicker() {
+    const [hour, minute] = preferredTime ? preferredTime.split(":").map(Number) : [NaN, NaN];
+    const selectedHour = deliveryHours.includes(hour) ? hour : Number(manualHourValue);
+    const availableMinutes = getMinutesForDeliveryHour(selectedHour, deliveryTimeRanges);
+    const preferredMinute = Number.isFinite(minute) ? minute : Number(manualDeliveryMinute);
+    const selectedMinute = availableMinutes.includes(preferredMinute) ? preferredMinute : (availableMinutes[0] ?? 0);
+    setDraftDeliveryHour(selectedHour);
+    setDraftDeliveryMinute(selectedMinute);
+    setDeliveryTimePickerStep("hour");
+    setDeliveryTimePickerOpen(true);
+  }
+  function updateDeliveryMinuteFromPointer(event) {
+    const availableMinutes = getMinutesForDeliveryHour(draftDeliveryHour, deliveryTimeRanges);
+    if (!availableMinutes.length) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const dx = event.clientX - (bounds.left + bounds.width / 2);
+    const dy = event.clientY - (bounds.top + bounds.height / 2);
+    const angle = (Math.atan2(dx, -dy) * 180 / Math.PI + 360) % 360;
+    const requestedMinute = Math.round(angle / 6) % 60;
+    setDraftDeliveryMinute(availableMinutes.reduce((closest, value) => Math.abs(value - requestedMinute) < Math.abs(closest - requestedMinute) ? value : closest, availableMinutes[0]));
+  }
+  function applyDeliveryTime() {
+    const hour = String(draftDeliveryHour).padStart(2, "0");
+    const minute = String(draftDeliveryMinute).padStart(2, "0");
+    if (!isTimeWithinDeliveryHours(`${hour}:${minute}`, deliveryTimeRanges)) return;
+    setManualDeliveryHour(hour);
+    setManualDeliveryMinute(minute);
+    setPreferredTime(`${hour}:${minute}`);
+    setDeliveryTimePickerOpen(false);
+  }
   // Load menu from the backend.
   useEffect(() => {
     getMenu()
@@ -158,9 +310,9 @@ useEffect(() => {
   // Search and category filtering.
   const visibleItems = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return items.filter((item) => {
+    const filteredItems = items.filter((item) => {
       const matchesCategory =
-        category === "All" || item.main_category === category;
+        category === "All" || (category && item.main_category === category);
       const matchesSearch =
         !term ||
         [
@@ -172,6 +324,15 @@ useEffect(() => {
           String(value || "").toLowerCase().includes(term)
         );
       return matchesCategory && matchesSearch;
+    });
+    if (!category) return [];
+    return filteredItems.sort((first, second) => {
+      const firstId = Number(first.display_code);
+      const secondId = Number(second.display_code);
+      if (Number.isFinite(firstId) && Number.isFinite(secondId)) return firstId - secondId;
+      if (Number.isFinite(firstId)) return -1;
+      if (Number.isFinite(secondId)) return 1;
+      return Number(first.item_id) - Number(second.item_id);
     });
   }, [items, search, category]);
   // Add a dish or increase its quantity.
@@ -263,6 +424,67 @@ useEffect(() => {
       window.clearTimeout(timer);
     };
   }, [checkoutOpen, orderType, deliveryAddress, cartTotal]);
+  useEffect(() => {
+    if (!isReviewingOrder || !customerToken) return;
+    let active = true;
+    Promise.all([getCustomerSession(customerToken), getCustomerSurpriseRewards(customerToken)])
+      .then(([{ customer }, { rewards }]) => {
+        if (!active) return;
+        const availableRewards = Array.isArray(rewards) ? rewards : [];
+        const savedRewardId = getSelectedCustomerRewardId(customer.customer_id);
+        const birthday = customer.birthday_discount_percent > 0;
+        const signup = customer.signup_discount_percent > 0;
+        const savedChoiceIsAvailable = savedRewardId === "birthday"
+          ? birthday
+          : savedRewardId === "signup"
+            ? signup
+            : availableRewards.some((reward) => String(reward.reward_id) === savedRewardId);
+        const selectedRewardId = savedChoiceIsAvailable
+          ? savedRewardId
+          : birthday
+            ? "birthday"
+            : signup
+              ? "signup"
+              : availableRewards.length === 1 ? String(availableRewards[0].reward_id) : "";
+        setSelectedSurpriseRewardId(selectedRewardId);
+        saveSelectedCustomerRewardId(customer.customer_id, selectedRewardId);
+        setCheckoutOffer({
+          token: customerToken,
+          customerId: customer.customer_id,
+          birthday,
+          birthdayPercent: Number(customer.birthday_discount_percent) || 0,
+          signupPercent: Number(customer.signup_discount_percent) || 0,
+          percent: birthday ? customer.birthday_discount_percent : customer.signup_discount_percent,
+          surpriseRewards: availableRewards,
+        });
+      })
+      .catch((error) => {
+        if (active) setCheckoutError(error.message || "Could not check your offers. Go back and try again.");
+      });
+    return () => { active = false; };
+  }, [isReviewingOrder, customerToken]);
+
+  const reviewedOffer = isReviewingOrder && customerToken && checkoutOffer?.token === customerToken
+    ? (() => {
+      const selectedReward = checkoutOffer.surpriseRewards?.find((reward) => String(reward.reward_id) === String(selectedSurpriseRewardId));
+      if (selectedReward) {
+        return { ...checkoutOffer, birthday: false, percent: selectedReward.reward_type === "percent" ? Number(selectedReward.reward_value) : 0, surpriseReward: selectedReward };
+      }
+      if (selectedSurpriseRewardId === "birthday" && checkoutOffer.birthdayPercent > 0) {
+        return { ...checkoutOffer, birthday: true, percent: checkoutOffer.birthdayPercent, surpriseReward: null };
+      }
+      if (selectedSurpriseRewardId === "signup" && checkoutOffer.signupPercent > 0) {
+        return { ...checkoutOffer, birthday: false, percent: checkoutOffer.signupPercent, surpriseReward: null };
+      }
+      if (selectedSurpriseRewardId === "none") {
+        return { ...checkoutOffer, birthday: false, percent: 0, surpriseReward: null };
+      }
+      return { ...checkoutOffer, surpriseReward: null };
+    })()
+    : null;
+  const offerDiscount = reviewedOffer
+    ? Math.round(Math.round(cartTotal * 100) * reviewedOffer.percent / 100) / 100
+    : 0;
   // Shared pricing summary appears on review and payment steps so the estimate stays visible.
   const orderPriceSummary = (
     <div className="checkout-price-summary" aria-live="polite">
@@ -270,6 +492,15 @@ useEffect(() => {
         <span>Food subtotal</span>
         <strong>{euro.format(cartTotal)}</strong>
       </div>
+      {offerDiscount > 0 && (
+        <div className="checkout-price-row">
+          <span>{reviewedOffer.surpriseReward ? "Surprise reward" : reviewedOffer.birthday ? "Birthday-week offer" : "Sign-up offer"} ({reviewedOffer.percent}%)</span>
+          <strong>−{euro.format(offerDiscount)}</strong>
+        </div>
+      )}
+      {reviewedOffer?.surpriseReward?.reward_type === "addon" && (
+        <div className="checkout-price-row"><span>Surprise reward · {reviewedOffer.surpriseReward.addon_item_name}</span><strong>Free</strong></div>
+      )}
       {orderType === "delivery" ? deliveryQuote ? (
         <>
           <div className="checkout-price-row">
@@ -278,7 +509,7 @@ useEffect(() => {
           </div>
           <div className="checkout-price-row checkout-price-total">
             <span>Estimated total</span>
-            <strong>{euro.format(deliveryQuote.total_amount)}</strong>
+            <strong>{euro.format(Number(deliveryQuote.total_amount) - offerDiscount)}</strong>
           </div>
           <small>{deliveryQuote.message} Final charge is confirmed when the order is accepted.</small>
         </>
@@ -288,9 +519,8 @@ useEffect(() => {
         <>
           <div className="checkout-price-row">
             <span>Delivery charge</span>
-            <strong>Pending confirmation</strong>
+            <strong>As applicable</strong>
           </div>
-          <p className="cart-note">We could not verify this address or delivery distance. Review the delivery information before continuing.</p>
         </>
       ) : (
         <p className="cart-note">Enter a complete delivery address to calculate the estimated charge automatically.</p>
@@ -302,7 +532,7 @@ useEffect(() => {
           </div>
           <div className="checkout-price-row checkout-price-total">
             <span>Estimated total</span>
-            <strong>{euro.format(cartTotal)}</strong>
+            <strong>{euro.format(cartTotal - offerDiscount)}</strong>
           </div>
         </>
       )}
@@ -339,7 +569,7 @@ function handleCheckoutSubmit(event) {
     address: deliveryAddress,
   });
   if (validationError) return setCheckoutError(validationError);
-  if (!preferredTime || !preferredTimeSlots.includes(preferredTime)) {
+  if (!isPreferredTimeValid(preferredTime)) {
     return setCheckoutError("Please select an available preferred delivery or pickup time.");
   }
   if (cart.length === 0) {
@@ -356,6 +586,7 @@ function handleCheckoutSubmit(event) {
 // Reuse the current address/subtotal quote; the backend recalculates again when the order is submitted.
 async function prepareOrderReview() {
   setCheckoutError("");
+  setCheckoutOffer(null);
   if (cart.length === 0) return setCheckoutError("Your cart is empty.");
   const validationError = validateCheckoutDetails({
     name: customerName,
@@ -364,12 +595,11 @@ async function prepareOrderReview() {
     address: deliveryAddress,
   });
   if (validationError) return setCheckoutError(validationError);
-  if (!preferredTime || !preferredTimeSlots.includes(preferredTime)) {
+  if (!isPreferredTimeValid(preferredTime)) {
     return setCheckoutError("Please select an available preferred delivery or pickup time.");
   }
 
   if (orderType === "delivery" && manualDeliveryReview) {
-    setIsPaymentStep(false);
     setIsReviewingOrder(true);
     return;
   }
@@ -398,8 +628,73 @@ async function prepareOrderReview() {
       setDeliveryQuoteLoading(false);
     }
   }
-  setIsPaymentStep(false);
   setIsReviewingOrder(true);
+}
+async function confirmOrder() {
+  if (isSubmittingOrder || (customerToken && !reviewedOffer)) return;
+  setCheckoutError("");
+  setIsSubmittingOrder(true);
+  try {
+    const data = await submitOrder({
+      customer_name: customerName.trim(),
+      customer_phone: customerPhone.trim(),
+      order_type: orderType,
+      payment_method: paymentMethod,
+      delivery_address: orderType === "delivery" ? deliveryAddress.trim() : null,
+      preferred_time: preferredTime,
+      delivery_charge_manual_review: orderType === "delivery" && manualDeliveryReview,
+      customer_notes: customerNotes.trim(),
+      apply_signup_offer: offerDiscount > 0 && !reviewedOffer.birthday && !reviewedOffer.surpriseReward,
+      apply_birthday_offer: Boolean(reviewedOffer?.birthday && !reviewedOffer?.surpriseReward),
+      apply_surprise_reward_id: reviewedOffer?.surpriseReward?.reward_id || null,
+      items: cart.map((item) => ({ item_id: item.item_id, quantity: item.quantity })),
+    }, customerToken);
+    if (reviewedOffer?.surpriseReward || (offerDiscount > 0 && (reviewedOffer?.birthday || checkoutOffer?.signupPercent > 0))) {
+      saveSelectedCustomerRewardId(checkoutOffer?.customerId, "");
+    }
+    const confirmation = {
+      orderId: data.order_id,
+      orderStatus: data.order_status,
+      orderMessage: data.message,
+      confirmationReason: data.confirmation_reason,
+      receiptNumber: data.receipt_number || null,
+      receiptToken: data.receipt_token,
+      orderType,
+      paymentMethod,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim(),
+      deliveryAddress: orderType === "delivery" ? deliveryAddress.trim() : "",
+      preferredTime,
+      customerNotes: customerNotes.trim(),
+      createdAt: new Date().toISOString(),
+      subtotal: Number(data.food_subtotal ?? cartTotal),
+      discountAmount: Number(data.discount_amount ?? 0),
+      totalAmount: Number(data.total_amount),
+      deliveryChargePendingManualReview: Boolean(data.delivery_charge_pending_manual_review),
+      deliveryCharge: data.delivery_charge_pending_manual_review
+        ? null
+        : Number(data.delivery_charge ?? (Number(data.total_amount) - cartTotal).toFixed(2)),
+      items: cart.map((item) => ({
+        name: item.item_name,
+        displayCode: item.display_code || "",
+        quantity: item.quantity,
+        unitPrice: Number(item.price_eur),
+        lineTotal: Number((Number(item.price_eur) * item.quantity).toFixed(2)),
+      })),
+    };
+    sessionStorage.setItem("desiDawatOrderConfirmation", JSON.stringify(confirmation));
+    sessionStorage.removeItem("desiDawatCart");
+    setCart([]);
+    window.location.href = `/order-confirmation?order=${data.order_id}`;
+  } catch (error) {
+    setCheckoutError(error.message || "Unable to submit your order. Please try again.");
+    if (error.code === "SIGNUP_OFFER_UNAVAILABLE" || error.code === "BIRTHDAY_OFFER_CHANGED") {
+      setIsReviewingOrder(false);
+      setCheckoutOffer(null);
+    }
+  } finally {
+    setIsSubmittingOrder(false);
+  }
 }
   return (
     <>
@@ -425,18 +720,16 @@ async function prepareOrderReview() {
             </p>
             <div className="promo-services">
               <div className="promo-service">
-                <span className="promo-icon">🛵</span>
+                <span className="promo-icon">🚚</span>
                 <span>
                   <strong>Kotiinkuljetus</strong>
                   <small>Tilaa herkullista ruokaa kotiin</small>
                 </span>
               </div>
-              <div className="promo-service">
+              <div className="promo-service promo-pickup-service">
                 <span className="promo-icon">📍</span>
-                <span>
-                  <strong>Nouto saatavilla</strong>
-                  <small>Oulu, Suomi</small>
-                </span>
+                <strong>Nouto saatavilla</strong>
+                <small className="promo-address-line">Pateniementie 59, 90800 Oulu, Suomi</small>
               </div>
             </div>
             <a
@@ -453,9 +746,6 @@ async function prepareOrderReview() {
     desidawat.food@gmail.com
   </a>
 </p>
-            <p className="promo-address">
-              📍 Pateniementie 59, 90800 Oulu
-            </p>
           </div>
           <div className="promo-divider" />
           <div className="promo-english">
@@ -465,18 +755,16 @@ async function prepareOrderReview() {
             </p>
             <div className="promo-services">
               <div className="promo-service">
-                <span className="promo-icon">🛵</span>
+                <span className="promo-icon">🚚</span>
                 <span>
                   <strong>Home delivery</strong>
                   <small>Order delicious food to your home</small>
                 </span>
               </div>
-              <div className="promo-service">
+              <div className="promo-service promo-pickup-service">
                 <span className="promo-icon">📍</span>
-                <span>
-                  <strong>Takeaway available</strong>
-                  <small>Oulu, Finland</small>
-                </span>
+                <strong>Takeaway available</strong>
+                <small className="promo-address-line">Pateniementie 59, 90800 Oulu, Finland</small>
               </div>
             </div>
             <a
@@ -493,22 +781,14 @@ async function prepareOrderReview() {
     desidawat.food@gmail.com
   </a>
 </p>
-            <p className="promo-address">
-              📍 Pateniementie 59, 90800 Oulu
-            </p>
           </div>
         </div>
         <div className="promo-brand">
-          <img
-            src="/images/LOGO.jpeg"
-            alt="Desi Dawat Food and Catering logo"
-          />
+          <img src="/images/LOGO.jpeg" alt="Desi Dawat Food and Catering logo" />
           <h2>Desi Dawat</h2>
           <p>FOOD &amp; CATERING</p>
           <div className="promo-gold-line" />
-          <p className="promo-brand-tagline">
-            Vegetarian Indian Kitchen
-          </p>
+          <p className="promo-brand-tagline">Vegetarian Indian Kitchen</p>
         </div>
       </section>
 {/* Opening Hours */}
@@ -545,6 +825,43 @@ async function prepareOrderReview() {
     </p>
   </div>
 </section>
+<section className="featured-dish-section" aria-label="Featured dishes">
+  <div className="featured-dish-shell">
+    <div className="featured-dish-heading">
+      <span className="eyebrow">A TASTE OF DESI DAWAT</span>
+      <h2>Made to be savoured</h2>
+    </div>
+    {items.length > 0 && (() => {
+      const featured = items[featuredIndex % items.length];
+      const image = resolveImageUrl(featured.image_url) || getDishImage(featured.item_name);
+      const nameLines = getBilingualMenuLines(featured.item_name || "Today's special");
+      const descriptionLines = getBilingualMenuLines(featured.short_information || "A much-loved vegetarian favourite, prepared fresh with aromatic spices.");
+      return (
+        <article className="featured-dish-card">
+          <div className="featured-dish-image-wrap">
+            {image ? <img src={image} alt={featured.item_name} className="featured-dish-image" /> : <div className="featured-dish-image-placeholder">Desi Dawat</div>}
+            <span className="featured-dish-index">{String(featuredIndex + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}</span>
+          </div>
+          <div className="featured-dish-copy">
+            <div className="featured-dish-title-block">
+              <span className="featured-dish-kicker">{featured.subcategory || featured.main_category || "VEGETARIAN FAVOURITE"}</span>
+              <h3 className={nameLines.join(" ").length > 48 ? "featured-dish-long-title" : ""}>{nameLines.map((line, index) => <span key={index}>{line}</span>)}</h3>
+            </div>
+            <div className="featured-dish-detail-block">
+              <div className="featured-dish-description">{descriptionLines.map((line, index) => <p key={index}>{line}</p>)}</div>
+              <div className="featured-dish-meta"><strong>{euro.format(Number(featured.price_eur) || 0)}</strong></div>
+              <button type="button" className="add-to-cart-btn featured-dish-add" onClick={() => addToCart(featured)}>Add to Cart</button>
+            </div>
+            <div className="featured-dish-controls">
+              <button type="button" aria-label="Previous featured dish" onClick={() => setFeaturedIndex((index) => (index - 1 + items.length) % items.length)}>←</button>
+              <button type="button" aria-label="Next featured dish" onClick={() => setFeaturedIndex((index) => (index + 1) % items.length)}>→</button>
+            </div>
+          </div>
+        </article>
+      );
+    })()}
+  </div>
+</section>
       {/* Menu. */}
       <section className="menu-section" id="menu">
         <div className="section-heading">
@@ -563,17 +880,18 @@ async function prepareOrderReview() {
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search dishes…"
           />
-          <div className="category-list">
+          <div className="category-list category-tiles" aria-label="Choose a menu category">
             {categories.map((value) => (
               <button
                 key={value}
                 type="button"
-                className={`category-chip ${
+                className={`category-chip category-tile ${
                   category === value ? "active" : ""
                 }`}
                 onClick={() => setCategory(value)}
               >
-                {value}
+                <span>{value === "All" ? "Explore all dishes" : value}</span>
+                <small>{value === "All" ? `${items.length} dishes` : `${items.filter((item) => item.main_category === value).length} dishes`}</small>
               </button>
             ))}
           </div>
@@ -592,7 +910,10 @@ async function prepareOrderReview() {
             Check the backend server and MySQL connection.
           </div>
         )}
-        {!loading && !error && visibleItems.length === 0 && (
+        {!loading && !error && !category && (
+          <p className="menu-category-prompt">Choose a collection above to explore the menu.</p>
+        )}
+        {!loading && !error && category && visibleItems.length === 0 && (
           <div className="notice">No dishes match your search.</div>
         )}
         <div className="menu-grid">
@@ -611,9 +932,11 @@ async function prepareOrderReview() {
                         event.currentTarget.style.display = "none";
                       }}
                     />
+                    {item.display_code && <span className="dish-number-badge" aria-label={`Menu item ${item.display_code}`}>{item.display_code}</span>}
                   </div>
                 ) : (
-                  <div className="dish-art" aria-hidden="true">
+                  <div className="dish-art">
+                    {item.display_code && <span className="dish-number-badge" aria-label={`Menu item ${item.display_code}`}>{item.display_code}</span>}
                     <span>✦</span>
                     <b>
                       {item.item_name
@@ -628,20 +951,12 @@ async function prepareOrderReview() {
                     {item.subcategory || item.main_category}
                   </div>
                   <div className="dish-title-row">
-                    <h3>{item.item_name}</h3>
+                    <h3>{getBilingualMenuLines(item.item_name).map((line, index) => <span key={index} style={{ display: "block" }}>{line}{index === 0 && (Array.isArray(item.allergen_codes) ? item.allergen_codes : String(item.allergen_codes || "").split(",").filter(Boolean)).length > 0 && <span className="dish-allergen-codes"> ({(Array.isArray(item.allergen_codes) ? item.allergen_codes : String(item.allergen_codes || "").split(",").filter(Boolean)).join(", ")})</span>}</span>)}</h3>
                     <strong className="price">
                       {euro.format(Number(item.price_eur))}
                     </strong>
                   </div>
-                  <p>
-                    {item.short_information ||
-                      "A delicious Indian vegetarian favourite."}
-                  </p>
-                  {item.quantity_serving && (
-                    <small className="serving">
-                      {item.quantity_serving}
-                    </small>
-                  )}
+                  <button type="button" className="dish-details-button" onClick={() => setDetailsItem(item)}>View details</button>
                   <button
                     type="button"
                     className="add-to-cart-btn"
@@ -654,8 +969,24 @@ async function prepareOrderReview() {
             );
           })}
         </div>
+        <aside className="menu-allergen-legend" aria-label="Allergen code legend">
+          <strong>Allergen codes / Allergeenikoodit</strong>
+          <p>Codes in parentheses identify allergens present in each dish.</p>
+          <ul>{menuAllergenCodes.map(([code, label]) => <li key={code}><strong>{code}</strong> — {label}</li>)}</ul>
+        </aside>
       </section>
       </>}
+      {detailsItem && (
+        <div className="dish-details-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsItem(null); }}>
+          <section className="dish-details-dialog" role="dialog" aria-modal="true" aria-labelledby="dish-details-title">
+            <button type="button" className="dish-details-close" aria-label="Close details" onClick={() => setDetailsItem(null)}>×</button>
+            <span className="dish-details-kicker">{detailsItem.subcategory || detailsItem.main_category}</span>
+            <h2 id="dish-details-title">{getBilingualMenuLines(detailsItem.item_name).map((line, index) => <span key={index}>{line}</span>)}</h2>
+            <div className="dish-details-copy">{getBilingualMenuLines(detailsItem.short_information || "A delicious Indian vegetarian favourite.").map((line, index) => <p key={index}>{line}</p>)}</div>
+            <div className="dish-details-footer"><strong>{euro.format(Number(detailsItem.price_eur))}</strong></div>
+          </section>
+        </div>
+      )}
       {/* Keep cart content in the DOM, but hide it on review/payment steps to avoid repeating order details. */}
       <section className="cart-section" id="cart" hidden={checkoutOpen}>
         <div className="section-heading">
@@ -672,7 +1003,7 @@ async function prepareOrderReview() {
               {cart.map((item) => (
                 <div className="cart-item" key={item.item_id}>
                   <div className="cart-item-info">
-                    <strong>{item.item_name}</strong>
+                    <strong>{getBilingualMenuLines(item.item_name).map((line, index) => <span key={index} style={{ display: "block" }}>{line}{index === 0 && item.display_code && <span className="dish-allergen-codes"> ({item.display_code})</span>}</span>)}</strong>
                     <span>
                       {euro.format(Number(item.price_eur))} each
                     </span>
@@ -736,9 +1067,8 @@ async function prepareOrderReview() {
             {[
               { label: "Details", index: 0 },
               { label: "Review", index: 1 },
-              { label: "Payment", index: 2 },
             ].map((step) => {
-              const activeStep = isPaymentStep ? 2 : isReviewingOrder ? 1 : 0;
+              const activeStep = isReviewingOrder ? 1 : 0;
               const stepState = step.index === activeStep ? "current" : step.index < activeStep ? "complete" : "";
               return (
                 <li className={stepState} key={step.label} aria-current={step.index === activeStep ? "step" : undefined}>
@@ -748,8 +1078,9 @@ async function prepareOrderReview() {
               );
             })}
           </ol>
-          {/* Hide the checkout heading on the review/payment steps while keeping checkout available. */}
-          <div className="section-heading" hidden={isReviewingOrder || isPaymentStep}>
+          {checkoutError && <p className="notice error" role="alert">{checkoutError}</p>}
+          {/* Hide the checkout heading on the review step while keeping checkout available. */}
+          <div className="section-heading" hidden={isReviewingOrder}>
             <div>
               <span className="eyebrow">ALMOST THERE</span>
               <h2>Checkout</h2>
@@ -791,6 +1122,10 @@ async function prepareOrderReview() {
                   checked={orderType === "delivery"}
                   onChange={() => {
                     setOrderType("delivery");
+                    hasInitializedDeliveryTime.current = false;
+                    setPreferredTime("");
+                    setManualDeliveryHour("19");
+                    setManualDeliveryMinute("00");
                     setManualDeliveryReview(false);
                   }}
                 />
@@ -804,6 +1139,10 @@ async function prepareOrderReview() {
                   checked={orderType === "takeaway"}
                   onChange={() => {
                     setOrderType("takeaway");
+                    hasInitializedDeliveryTime.current = false;
+                    setPreferredTime("");
+                    setManualDeliveryHour("19");
+                    setManualDeliveryMinute("00");
                     setManualDeliveryReview(false);
                   }}
                 />
@@ -838,20 +1177,151 @@ async function prepareOrderReview() {
                 <label htmlFor="preferred-order-time">
                   {orderType === "delivery" ? "Preferred delivery time / Toivottu toimitusaika" : "Preferred pickup time / Toivottu noutoaika"} *
                 </label>
-                <select
-                  id="preferred-order-time"
-                  value={preferredTime}
-                  onChange={(event) => setPreferredTime(event.target.value)}
-                  required
-                >
-                  <option value="">
-                    Choose a time / Valitse aika
-                  </option>
-                  {preferredTimeSlots.map((time) => <option key={time} value={time}>{time}</option>)}
-                </select>
-                <p className="preparation-time-note">Valmistamme kaikki tilaukset tuoreina. Valitse aika, joka antaa 45–60 minuuttia valmisteluun. Vahvistamme tarkan toimitus- tai noutoajan senhetkisen tilausjonon mukaan. / All orders are freshly prepared. Please choose a time that allows 45–60 minutes for preparation. We’ll confirm the exact delivery or pickup time based on the current order queue.</p>
+                {orderType === "delivery" ? (
+                  <>
+                    <div className="delivery-time-entry">
+                      <div className="delivery-manual-time" id="preferred-order-time">
+                        <select
+                          aria-label="Delivery hour"
+                          value={manualHourValue}
+                          onChange={(event) => {
+                            const hour = event.target.value;
+                            const nextMinute = getMinutesForDeliveryHour(Number(hour), deliveryTimeRanges)[0];
+                            const minute = Number.isFinite(nextMinute) ? String(nextMinute).padStart(2, "0") : "";
+                            setManualDeliveryHour(hour);
+                            setManualDeliveryMinute(minute);
+                            setPreferredTime(minute ? `${hour}:${minute}` : "");
+                          }}
+                          required
+                          disabled={!deliveryHours.length}
+                        >
+                          {!deliveryHours.length && <option value="">Unavailable</option>}
+                          {deliveryHours.map((hour) => <option key={hour} value={String(hour).padStart(2, "0")}>{String(hour).padStart(2, "0")}</option>)}
+                        </select>
+                        <span aria-hidden="true">:</span>
+                        <input
+                          type="number"
+                          aria-label="Delivery minute, 00 to 59"
+                          min={getMinutesForDeliveryHour(Number(manualHourValue), deliveryTimeRanges)[0] ?? 0}
+                          max={getMinutesForDeliveryHour(Number(manualHourValue), deliveryTimeRanges).at(-1) ?? 0}
+                          step="1"
+                          inputMode="numeric"
+                          placeholder="00"
+                          value={manualDeliveryMinute}
+                          disabled={!getMinutesForDeliveryHour(Number(manualHourValue), deliveryTimeRanges).length}
+                          onChange={(event) => {
+                            const minute = event.target.value;
+                            if (minute === "") {
+                              setManualDeliveryMinute(minute);
+                              setPreferredTime("");
+                              return;
+                            }
+                            if (/^\d{1,2}$/.test(minute) && Number(minute) <= 59) {
+                              const formattedMinute = String(Number(minute)).padStart(2, "0");
+                              const candidate = `${manualHourValue}:${formattedMinute}`;
+                              setManualDeliveryMinute(minute);
+                              setPreferredTime(isTimeWithinDeliveryHours(candidate, deliveryTimeRanges) ? candidate : "");
+                            }
+                          }}
+                          onBlur={() => {
+                            const availableMinutes = getMinutesForDeliveryHour(Number(manualHourValue), deliveryTimeRanges);
+                            if (!availableMinutes.length) return;
+                            const typedMinute = Number(manualDeliveryMinute);
+                            const correctedMinute = availableMinutes.includes(typedMinute)
+                              ? typedMinute
+                              : availableMinutes.reduce((closest, value) => Math.abs(value - typedMinute) < Math.abs(closest - typedMinute) ? value : closest, availableMinutes[0]);
+                            const minute = String(correctedMinute).padStart(2, "0");
+                            setManualDeliveryMinute(minute);
+                            setPreferredTime(`${manualHourValue}:${minute}`);
+                          }}
+                          required
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className="delivery-time-picker-trigger"
+                        aria-label="Choose delivery time using the clock"
+                        aria-haspopup="dialog"
+                        aria-expanded={deliveryTimePickerOpen}
+                        disabled={!deliveryHours.length}
+                        onClick={openDeliveryTimePicker}
+                      >
+                        <span aria-hidden="true">◷</span>
+                        <span>Clock</span>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <select
+                    id="preferred-order-time"
+                    value={preferredTime}
+                    onChange={(event) => setPreferredTime(event.target.value)}
+                    required
+                  >
+                    <option value="">Choose a time / Valitse aika</option>
+                    {preferredTimeSlots.map((time) => <option key={time} value={time}>{time}</option>)}
+                  </select>
+                )}
               </div>
             </div>
+            <aside className="preparation-time-note" aria-label="Fresh preparation notice">
+              <strong>Tuoreena valmistettu / Freshly prepared</strong>
+              <span>Koska kaikki annokset valmistetaan tuoreina, tee tilauksesi vähintään tuntia ennen toivomaasi nouto- tai toimitusaikaa.</span>
+              <span>As all orders are prepared fresh, please place your order via WhatsApp at least one hour before your preferred pickup or delivery time.</span>
+            </aside>
+            {deliveryTimePickerOpen && orderType === "delivery" && (
+              <div className="delivery-time-picker-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDeliveryTimePickerOpen(false); }}>
+                <section className="delivery-time-picker" role="dialog" aria-modal="true" aria-labelledby="delivery-time-picker-title" onKeyDown={(event) => { if (event.key === "Escape") setDeliveryTimePickerOpen(false); }}>
+                  <button type="button" className="delivery-time-picker-close" aria-label="Close time picker" onClick={() => setDeliveryTimePickerOpen(false)}>×</button>
+                  <span className="eyebrow">HOME DELIVERY · {formatOpeningPeriods(todayOpeningHours)}</span>
+                  <h2 id="delivery-time-picker-title">Choose a delivery time</h2>
+                  <div className="delivery-time-picker-tabs" aria-label="Time selection steps">
+                    <button type="button" className={deliveryTimePickerStep === "hour" ? "active" : ""} onClick={() => setDeliveryTimePickerStep("hour")}>1 · Hour</button>
+                    <button type="button" className={deliveryTimePickerStep === "minute" ? "active" : ""} disabled={deliveryTimePickerStep === "hour"} onClick={() => setDeliveryTimePickerStep("minute")}>2 · Minute</button>
+                  </div>
+                  {deliveryTimePickerStep === "hour" ? (
+                    <div className="delivery-hour-dial" aria-label="Choose delivery hour">
+                      {deliveryHours.map((hour, index) => {
+                        const angle = (index / deliveryHours.length) * Math.PI * 2;
+                        const minute = getMinutesForDeliveryHour(hour, deliveryTimeRanges)[0] ?? 0;
+                        return <button key={hour} type="button" style={{ left: `calc(50% + ${Math.sin(angle) * 104}px)`, top: `calc(50% - ${Math.cos(angle) * 104}px)` }} className={draftDeliveryHour === hour ? "active" : ""} onClick={() => { setDraftDeliveryHour(hour); setDraftDeliveryMinute(minute); setDeliveryTimePickerStep("minute"); }}>{String(hour).padStart(2, "0")}:00</button>;
+                      })}
+                      <div className="delivery-time-dial-center"><strong>{String(draftDeliveryHour).padStart(2, "0")}:{String(draftDeliveryMinute).padStart(2, "0")}</strong></div>
+                    </div>
+                  ) : (
+                    <div
+                      ref={minuteDialRef}
+                      className={`delivery-minute-dial${getMinutesForDeliveryHour(draftDeliveryHour, deliveryTimeRanges).length === 1 ? " locked" : ""}`}
+                      role="slider"
+                      aria-label="Choose delivery minute"
+                      aria-valuemin={getMinutesForDeliveryHour(draftDeliveryHour, deliveryTimeRanges)[0] ?? 0}
+                      aria-valuemax={getMinutesForDeliveryHour(draftDeliveryHour, deliveryTimeRanges).at(-1) ?? 0}
+                      aria-valuenow={draftDeliveryMinute}
+                      aria-valuetext={`${String(draftDeliveryHour).padStart(2, "0")}:${String(draftDeliveryMinute).padStart(2, "0")}`}
+                      tabIndex="0"
+                      onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); updateDeliveryMinuteFromPointer(event); }}
+                      onPointerMove={(event) => { if (event.buttons === 1) updateDeliveryMinuteFromPointer(event); }}
+                      onKeyDown={(event) => {
+                        const availableMinutes = getMinutesForDeliveryHour(draftDeliveryHour, deliveryTimeRanges);
+                        if (event.key === "ArrowRight" || event.key === "ArrowUp") { event.preventDefault(); setDraftDeliveryMinute((minute) => availableMinutes[(availableMinutes.indexOf(minute) + 1 + availableMinutes.length) % availableMinutes.length] ?? minute); }
+                        if (event.key === "ArrowLeft" || event.key === "ArrowDown") { event.preventDefault(); setDraftDeliveryMinute((minute) => availableMinutes[(availableMinutes.indexOf(minute) - 1 + availableMinutes.length) % availableMinutes.length] ?? minute); }
+                      }}
+                    >
+                      {Array.from({ length: 12 }, (_, index) => {
+                        const angle = index * Math.PI / 6;
+                        return <span key={index} className="delivery-minute-mark" style={{ left: `calc(50% + ${Math.sin(angle) * 104}px)`, top: `calc(50% - ${Math.cos(angle) * 104}px)` }}>{String(index * 5).padStart(2, "0")}</span>;
+                      })}
+                      <span className="delivery-minute-hand" style={{ "--hand-angle": `${draftDeliveryMinute * 6}deg` }} />
+                      <span className="delivery-minute-center"><strong>{String(draftDeliveryHour).padStart(2, "0")}:{String(draftDeliveryMinute).padStart(2, "0")}</strong></span>
+                    </div>
+                  )}
+                  <div className="delivery-time-picker-actions">
+                    {deliveryTimePickerStep === "minute" && <button type="button" className="button button-outline" onClick={() => setDeliveryTimePickerStep("hour")}>Change hour</button>}
+                    <button type="button" className="button button-primary" disabled={deliveryTimePickerStep !== "minute"} onClick={applyDeliveryTime}>Use this time</button>
+                  </div>
+                </section>
+              </div>
+            )}
             <div className="checkout-field">
               <label htmlFor="customer-notes">
                 Additional instructions (optional)
@@ -888,8 +1358,18 @@ async function prepareOrderReview() {
           {showDeliveryReviewPrompt && !isReviewingOrder && (
             <div className="delivery-review-overlay" role="presentation">
               <section className="delivery-review-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-review-title">
-                <h2 id="delivery-review-title">Address not found / delivery distance unverified</h2>
-                <p>We couldn’t confirm this address or its delivery distance. This does not necessarily mean delivery is unavailable. Please check the route and distance in Google Maps. You may continue without an estimated delivery charge; if your order is accepted during opening hours, the restaurant will verify the address and confirm the charge with you.</p>
+                <h2 id="delivery-review-title">Address not verified</h2>
+                <p className="delivery-review-instructions">
+                  Please check the road distance from <strong>Lidl Store, Pateniemi</strong> to your delivery address in{" "}
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent("Lidl Store, Pateniemi, Oulu, Finland")}&destination=${encodeURIComponent(deliveryAddress)}&travelmode=driving`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Google Maps
+                  </a>{" "}
+                  and check your delivery charge below.
+                </p>
                 <h3>Delivery charge criteria</h3>
                 <ul>
                   <li>Food orders over €75: free delivery within 15 km.</li>
@@ -904,14 +1384,13 @@ async function prepareOrderReview() {
                     setManualDeliveryReview(true);
                     setShowDeliveryReviewPrompt(false);
                     setCheckoutError("");
-                    setIsPaymentStep(false);
                     setIsReviewingOrder(true);
                   }}>Continue without estimated delivery charge</button>
                 </div>
               </section>
             </div>
           )}
-{isReviewingOrder && !isPaymentStep && (
+{isReviewingOrder && (
   <div className="checkout-review">
     <h3>Review Your Order</h3>
     <p><strong>Customer:</strong> {customerName}</p>
@@ -924,32 +1403,45 @@ async function prepareOrderReview() {
       <p><strong>Delivery address:</strong> {deliveryAddress}</p>
     )}
     <p><strong>{orderType === "delivery" ? "Preferred delivery time" : "Preferred pickup time"}:</strong> {preferredTime}</p>
-    {orderType === "delivery" && manualDeliveryReview && (
-      <p className="cart-note" role="status">No delivery charge is included yet. The restaurant will verify the address and confirm the delivery charge with you.</p>
-    )}
     <h4>Items</h4>
     {cart.map((item) => (
       <p key={item.item_id}>
-        {item.item_name} × {item.quantity}
+        {getBilingualMenuLines(item.item_name).map((line, index) => <span key={index} style={{ display: "block" }}>{line}{index === 0 && item.display_code ? ` (${item.display_code})` : ""}</span>)}
+        × {item.quantity}
       </p>
     ))}
+    {customerToken && (checkoutOffer?.surpriseRewards?.length > 0 || checkoutOffer?.birthdayPercent > 0 || checkoutOffer?.signupPercent > 0) && (
+      <label className="checkout-surprise-reward">
+        Choose an offer for this order
+        <select value={selectedSurpriseRewardId} onChange={(event) => {
+          setSelectedSurpriseRewardId(event.target.value);
+          saveSelectedCustomerRewardId(checkoutOffer?.customerId, event.target.value);
+        }}>
+          <option value="none">No offer</option>
+          {checkoutOffer.birthdayPercent > 0 && <option value="birthday">Birthday-week offer · {checkoutOffer.birthdayPercent}% off food</option>}
+          {checkoutOffer.signupPercent > 0 && <option value="signup">Sign-up offer · {checkoutOffer.signupPercent}% off food</option>}
+          {checkoutOffer.surpriseRewards.map((reward) => (
+            <option key={reward.reward_id} value={reward.reward_id}>
+              {reward.reward_type === "percent" ? `${Number(reward.reward_value)}% off food` : `Free ${reward.addon_item_name || "add-on dish"}`} · expires {new Date(reward.expires_at).toLocaleDateString("en-GB")}
+            </option>
+          ))}
+        </select>
+      </label>
+    )}
     {orderPriceSummary}
     <div className="checkout-actions">
 <button
       type="button"
       className="add-to-cart-btn"
-      onClick={() => {
-        setCheckoutError("");
-        setIsPaymentStep(true);
-      }}
+      onClick={confirmOrder}
+      disabled={isSubmittingOrder || Boolean(customerToken && !reviewedOffer)}
     >
-      Continue to Payment / Siirry maksamaan
+      Continue to confirm your order / Jatka tilauksen vahvistamiseen
     </button>
     <button
       type="button"
       className="add-to-cart-btn"
       onClick={() => {
-        setIsPaymentStep(false);
         setIsReviewingOrder(false);
         setCheckoutError("");
       }}
@@ -959,100 +1451,6 @@ async function prepareOrderReview() {
     </div>
   </div>
 )}
-        {isReviewingOrder && isPaymentStep && (
-          <div className="checkout-review">
-            <h3>Payment / Maksaminen</h3>
-            <p><strong>Customer:</strong> {customerName}</p>
-            <p><strong>Phone:</strong> {customerPhone}</p>
-            <p><strong>Order type:</strong> {orderType === "delivery" ? "Home delivery" : "Takeaway / pickup"}</p>
-            {orderType === "delivery" && <p><strong>Delivery address:</strong> {deliveryAddress}</p>}
-            <p><strong>{orderType === "delivery" ? "Preferred delivery time" : "Preferred pickup time"}:</strong> {preferredTime}</p>
-            {orderType === "delivery" && manualDeliveryReview && (
-              <p className="cart-note" role="status">No delivery charge is included yet. The restaurant will verify the address and confirm the delivery charge with you.</p>
-            )}
-            <h4>Your order consists of / Tilauksesi sisältää</h4>
-            {cart.map((item, index) => (
-              <p key={item.item_id}>
-                {index + 1}. {item.item_name} × {item.quantity}
-              </p>
-            ))}
-            {orderPriceSummary}
-            {/* Payment choices callout: highlight that customers can choose any method on the receipt. */}
-            <div className="checkout-field checkout-payment-note">
-              <p>You may pay using any of the payment methods listed on your receipt.</p>
-              <p><em>Voit maksaa millä tahansa kuitissa mainituista maksutavoista.</em></p>
-              <p>Confirm your order to complete checkout and receive your order confirmation.</p>
-              <p><em>Vahvista tilaus viimeistelläksesi tilauksen ja saadaksesi tilausvahvistuksen.</em></p>
-            </div>
-            {checkoutError && <p className="notice error" role="alert">{checkoutError}</p>}
-            <div className="checkout-actions">
-            <button
-              type="button"
-              className="add-to-cart-btn"
-              onClick={async () => {
-                setCheckoutError("");
-                try {
-                  const data = await submitOrder({
-                    customer_name: customerName.trim(),
-                    customer_phone: customerPhone.trim(),
-                    order_type: orderType,
-                    payment_method: paymentMethod,
-                    delivery_address: orderType === "delivery" ? deliveryAddress.trim() : null,
-                    preferred_time: preferredTime,
-                    delivery_charge_manual_review: orderType === "delivery" && manualDeliveryReview,
-                    customer_notes: customerNotes.trim(),
-                    items: cart.map((item) => ({ item_id: item.item_id, quantity: item.quantity })),
-                  });
-                  const confirmation = {
-                    orderId: data.order_id,
-                    orderStatus: data.order_status,
-                    orderMessage: data.message,
-                    confirmationReason: data.confirmation_reason,
-                    receiptNumber: data.receipt_number || null,
-                    receiptToken: data.receipt_token,
-                    orderType,
-                    paymentMethod,
-                    customerName: customerName.trim(),
-                    customerPhone: customerPhone.trim(),
-                    deliveryAddress: orderType === "delivery" ? deliveryAddress.trim() : "",
-                    preferredTime,
-                    customerNotes: customerNotes.trim(),
-                    createdAt: new Date().toISOString(),
-                    subtotal: Number(cartTotal.toFixed(2)),
-                    totalAmount: Number(data.total_amount),
-                    deliveryChargePendingManualReview: Boolean(data.delivery_charge_pending_manual_review),
-                    deliveryCharge: data.delivery_charge_pending_manual_review
-                      ? null
-                      : Number((Number(data.total_amount) - cartTotal).toFixed(2)),
-                    items: cart.map((item) => ({
-                      name: item.item_name,
-                      quantity: item.quantity,
-                      unitPrice: Number(item.price_eur),
-                      lineTotal: Number((Number(item.price_eur) * item.quantity).toFixed(2)),
-                    })),
-                  };
-                  sessionStorage.setItem("desiDawatOrderConfirmation", JSON.stringify(confirmation));
-                  window.location.href = `/order-confirmation?order=${data.order_id}`;
-                } catch (error) {
-                  setCheckoutError(error.message || "Unable to submit your order. Please try again.");
-                }
-              }}
-            >
-              Confirm and Place Order / Vahvista ja tee tilaus
-            </button>
-            <button
-              type="button"
-              className="add-to-cart-btn"
-              onClick={() => {
-                setIsPaymentStep(false);
-                setCheckoutError("");
-              }}
-            >
-              Back to Order Review / Takaisin tilauksen tarkistukseen
-            </button>
-            </div>
-          </div>
-        )}
         </section>
       )}
     </>
